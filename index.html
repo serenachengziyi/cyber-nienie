@@ -278,11 +278,12 @@
     /* 进度环 */
     .progress-ring-container {
       position: absolute;
-      top: 50%;
+      top: 50%; /* 屏幕正中间 */
       left: 50%;
       transform: translate(-50%, -50%);
       opacity: 0;
       transition: opacity 0.3s;
+      z-index: 30;
     }
     
     .progress-ring-container.visible {
@@ -494,9 +495,9 @@
     // ==================== 配置 ====================
     const CONFIG = {
       HOLD_TIME_MS: 3000,
-      GRACE_PERIOD_MS: 450,
-      FIST_THRESHOLD: 0.72,
-      EMA_ALPHA: 0.24,
+      GRACE_PERIOD_MS: 600, // 增加容错时间
+      FIST_THRESHOLD: 0.65, // 降低握拳阈值，提高灵敏度
+      EMA_ALPHA: 0.28, // 增加平滑系数
       TOUCH_FEEDBACK_DURATION: 100
     };
 
@@ -785,31 +786,9 @@
       ctx.fill();
     }
 
-    // ==================== 位置计算函数 ====================
-    // 计算捏捏位置，与"萌系童话捏捏乐"文字保持一致的布局关系
-    function getToyPosition() {
-      const screenW = window.innerWidth;
-      const screenH = window.innerHeight;
-      
-      // 水平居中（与标题一致）
-      const cx = screenW / 2;
-      
-      // 垂直位置计算：模拟.card容器的布局
-      // .card使用flex居中，标题在卡片内偏上位置
-      const cardPadding = screenW < 640 ? 24 : 32; // p-6(24px) 或 p-8(32px)
-      const emojiHeight = Math.min(screenW * 0.12, 64); // clamp(48px, 12vw, 64px)
-      const emojiMargin = 16;
-      const titleOffset = 30; // 标题在卡片内的偏移
-      
-      // 计算垂直位置：屏幕中心 - 卡片半高 + 顶部间距 + emoji高度 + 标题偏移
-      const cy = (screenH / 2) - 80 + cardPadding + emojiHeight + emojiMargin + titleOffset;
-      
-      return { cx, cy };
-    }
-
     // ==================== 绘制模型 ====================
-    function drawModel(toy, cx, cy, baseScale = 1.8) {
-      // 根据传入的baseScale计算缩放，与index.txt保持一致
+    function drawModel(toy, cx, cy, baseScale = 1.2, scale = 1) {
+      // 根据传入的baseScale计算缩放
       const s = (1 + state.squeeze * 0.22) * baseScale;
       const sy = (1 - state.squeeze * 0.18) * baseScale;
       
@@ -944,12 +923,12 @@
       ctx.fillText(toy.emoji, 0, 8);
       ctx.restore();
 
-      // 绘制名称
+      // 绘制名称（自适应缩放）
       ctx.fillStyle = '#7a6758';
-      const nameFontSize = window.innerWidth < 768 ? 24 : 31;
+      const nameFontSize = Math.round(24 * Math.min(1.2, scale || 1));
       ctx.font = `${nameFontSize}px ZCOOL KuaiLe`;
       ctx.textAlign = 'center';
-      const nameOffset = window.innerWidth < 768 ? 160 : 205;
+      const nameOffset = Math.round(160 * Math.min(1.2, scale || 1));
       ctx.fillText(toy.name, cx, cy + nameOffset);
     }
 
@@ -957,8 +936,9 @@
     function spawnExplosion() {
       state.exploded = true;
       state.particles = [];
-      // 使用统一的位置计算函数，与"萌系童话捏捏乐"文字及捏捏保持一致的布局关系
-      const { cx, cy } = getToyPosition();
+      // 爆炸位置：屏幕正中间
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
       
       const n = state.category === 'crawler' ? 92 : 128;
       
@@ -1140,11 +1120,13 @@
           locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` 
         });
         
+        // 移动端优化配置
+        const isMobile = window.innerWidth < 768;
         hands.setOptions({ 
           maxNumHands: 1, 
-          modelComplexity: 1, 
-          minDetectionConfidence: 0.6, 
-          minTrackingConfidence: 0.6 
+          modelComplexity: isMobile ? 0 : 1, // 移动端使用轻量模型
+          minDetectionConfidence: 0.5, // 降低检测阈值提高灵敏度
+          minTrackingConfidence: 0.5 
         });
         
         hands.onResults(onHandResults);
@@ -1182,16 +1164,24 @@
       ctx.fillStyle = '#f8f1e7';
       ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
       
-      if (pages.landing.classList.contains('active')) updateFloaters();
+      // 只在第一页显示浮动图像
+      if (pages.landing.classList.contains('active')) {
+        floatingLayer.style.display = 'block';
+        updateFloaters();
+      } else {
+        floatingLayer.style.display = 'none';
+      }
 
       if (!pages.landing.classList.contains('active') && !pages.category.classList.contains('active')) {
-        // 使用统一的位置计算函数，与"萌系童话捏捏乐"文字保持一致的布局关系
-        const { cx, cy } = getToyPosition();
+        // 第三页：捏捏定位到屏幕正中间
+        const cx = window.innerWidth / 2;
+        const cy = window.innerHeight / 2;
+        const scale = window.innerWidth / 375;
         
         if (!state.exploded) {
           const toy = TOYS[state.category][state.toyIndex];
-          const baseScale = window.innerWidth < 768 ? 1.2 : 1.8; // 手机上显示小一点，桌面大一点
-          drawModel(toy, cx, cy, baseScale);
+          const baseScale = Math.min(1.2, scale * 1.2);
+          drawModel(toy, cx, cy, baseScale, scale);
         } else {
           drawParticles();
           if (state.category === 'crawler') drawCrawlers();
