@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>萌系童话捏捏乐</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
     :root {
       --beige: #f8f1e7;
       --ink: #6c584c;
       --pink: #ff9eb5;
-      --mint: #9bd4c3;
-      --cream: #fff7ef;
     }
     * { box-sizing: border-box; }
     body {
@@ -77,18 +77,36 @@
       display: none;
     }
     #play-ui .interactive { pointer-events: auto; }
+    .input_video { display: none; }
+    #camera-preview {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      width: 190px;
+      height: 140px;
+      border-radius: 14px;
+      border: 3px solid rgba(255,255,255,.95);
+      box-shadow: 0 8px 16px rgba(0,0,0,.12);
+      object-fit: cover;
+      transform: scaleX(-1);
+      z-index: 30;
+      display: none;
+      background: #e9dfd0;
+    }
   </style>
 </head>
 <body>
   <canvas id="play-canvas"></canvas>
   <div id="floating-layer"></div>
 
+  <video class="input_video"></video>
+  <video id="camera-preview" autoplay playsinline muted></video>
+
   <section id="page-landing" class="screen active">
     <div class="card w-[min(92vw,760px)] p-8 text-center relative z-20">
       <h1 class="text-5xl md:text-6xl text-pink-400 mb-4" style="text-shadow:2px 2px 0 #fff;">萌系童话捏捏乐</h1>
       <p class="text-xl md:text-2xl mb-8">随机漂浮的捏捏正在陪你放松 ✨</p>
       <button id="go-category" class="px-8 py-4 rounded-full text-2xl text-white bg-gradient-to-r from-pink-300 to-rose-400 shadow-lg hover:scale-105 transition-transform">进入类别选择</button>
-      <p class="mt-5 text-sm opacity-75">背景是米色治愈风，浮动图形不会遮挡按钮与文字。</p>
     </div>
   </section>
 
@@ -97,14 +115,14 @@
       <h2 class="text-4xl text-center mb-5">选择捏捏类别</h2>
       <div id="category-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
       <div class="text-center">
-        <button id="start-play" class="cat-btn px-7 py-3 rounded-full text-white text-2xl bg-gradient-to-r from-amber-300 to-orange-300 border-2 border-amber-200 hover:scale-105 transition-transform">开始捏捏解压</button>
+        <button id="start-play" class="cat-btn px-7 py-3 rounded-full text-white text-2xl bg-gradient-to-r from-amber-300 to-orange-300 border-2 border-amber-200 hover:scale-105 transition-transform">开启摄像头捏捏</button>
       </div>
     </div>
   </section>
 
-  <section id="play-ui" class="">
+  <section id="play-ui">
     <div class="w-full pt-4 text-center">
-      <div class="inline-block card px-6 py-3 text-lg">按住中间捏捏球挤压，松开恢复；长按会捏爆！</div>
+      <div class="inline-block card px-6 py-3 text-lg">对着镜头握拳持续 3 秒即可捏爆（保持在画面中间）</div>
     </div>
     <div class="absolute top-20 left-1/2 -translate-x-1/2 card px-6 py-3 text-3xl" id="status-text">准备好了吗？</div>
     <div class="absolute bottom-4 left-1/2 -translate-x-1/2 interactive w-[min(96vw,1100px)] card p-4">
@@ -117,6 +135,13 @@
   </section>
 
   <script>
+    const CONFIG = {
+      HOLD_TIME_MS: 3000,
+      GRACE_PERIOD_MS: 450,
+      FIST_THRESHOLD: 0.72,
+      EMA_ALPHA: 0.24
+    };
+
     const pages = {
       landing: document.getElementById('page-landing'),
       category: document.getElementById('page-category')
@@ -130,25 +155,56 @@
     const currentCategoryLabel = document.getElementById('current-category');
     const floatingLayer = document.getElementById('floating-layer');
 
+    const videoElement = document.querySelector('.input_video');
+    const cameraPreview = document.getElementById('camera-preview');
+
     const CATEGORIES = {
-      fruit: { name: '水果捏捏', icon: '🍓', popWave: '#ffb5c8', boom: 180 },
-      crawler: { name: '爬虫捏捏', icon: '🪳', popWave: '#d2b48c', boom: 95 },
-      animal: { name: '动物捏捏', icon: '🐰', popWave: '#c8d9ff', boom: 140 },
-      dessert: { name: '甜品捏捏', icon: '🧁', popWave: '#ffd8a8', boom: 165 }
+      fruit: { name: '水果捏捏', icon: '🍓', popWave: '#ffb5c8' },
+      crawler: { name: '爬虫捏捏', icon: '🪳', popWave: '#d2b48c' },
+      animal: { name: '动物捏捏', icon: '🐰', popWave: '#c8d9ff' },
+      dessert: { name: '甜品捏捏', icon: '🧁', popWave: '#ffd8a8' }
     };
 
     const TOYS = {
       fruit: [
-        ['🍑','蜜桃'],['🍊','香橙'],['🍓','草莓'],['🍉','西瓜'],['🍍','菠萝'],['🍇','葡萄'],['🍋','柠檬'],['🥝','奇异果']
+        { emoji:'🍑', name:'蜜桃', model:'peach', c1:'#ffb09e', c2:'#ffd2c8' },
+        { emoji:'🍊', name:'香橙', model:'orange', c1:'#ffa62b', c2:'#ffd166' },
+        { emoji:'🍓', name:'草莓', model:'strawberry', c1:'#ff5d73', c2:'#ff98a8' },
+        { emoji:'🍉', name:'西瓜', model:'melon', c1:'#2f9e44', c2:'#ff6b6b' },
+        { emoji:'🍍', name:'菠萝', model:'pineapple', c1:'#ffd43b', c2:'#74b816' },
+        { emoji:'🍇', name:'葡萄', model:'grape', c1:'#9d4edd', c2:'#c77dff' },
+        { emoji:'🍋', name:'柠檬', model:'lemon', c1:'#ffd93d', c2:'#fff3bf' },
+        { emoji:'🥝', name:'奇异果', model:'kiwi', c1:'#7cb342', c2:'#cddc39' }
       ],
       crawler: [
-        ['🪳','蟑螂捏捏'],['🐞','瓢虫捏捏'],['🐜','蚂蚁捏捏'],['🕷️','蜘蛛捏捏'],['🦂','蝎子捏捏'],['🪲','甲虫捏捏'],['🐛','毛毛虫捏捏'],['🪰','小飞虫捏捏']
+        { emoji:'🪳', name:'蟑螂捏捏', model:'roach', c1:'#8d6e63', c2:'#bcaaa4' },
+        { emoji:'🐞', name:'瓢虫捏捏', model:'ladybug', c1:'#ef5350', c2:'#ff8a80' },
+        { emoji:'🐜', name:'蚂蚁捏捏', model:'ant', c1:'#6d4c41', c2:'#a1887f' },
+        { emoji:'🕷️', name:'蜘蛛捏捏', model:'spider', c1:'#607d8b', c2:'#90a4ae' },
+        { emoji:'🦂', name:'蝎子捏捏', model:'scorpion', c1:'#795548', c2:'#a1887f' },
+        { emoji:'🪲', name:'甲虫捏捏', model:'beetle', c1:'#455a64', c2:'#78909c' },
+        { emoji:'🐛', name:'毛毛虫捏捏', model:'worm', c1:'#81c784', c2:'#c5e1a5' },
+        { emoji:'🪰', name:'小飞虫捏捏', model:'fly', c1:'#90a4ae', c2:'#cfd8dc' }
       ],
       animal: [
-        ['🐰','兔兔捏捏'],['🐱','喵咪捏捏'],['🐶','小狗捏捏'],['🐻','小熊捏捏'],['🐼','熊猫捏捏'],['🦊','小狐狸捏捏'],['🐹','仓鼠捏捏'],['🦄','独角兽捏捏']
+        { emoji:'🐰', name:'兔兔捏捏', model:'bunny', c1:'#ffe3ec', c2:'#fff' },
+        { emoji:'🐱', name:'喵咪捏捏', model:'cat', c1:'#ffd8b1', c2:'#fff3e0' },
+        { emoji:'🐶', name:'小狗捏捏', model:'dog', c1:'#f4c095', c2:'#ffe8cc' },
+        { emoji:'🐻', name:'小熊捏捏', model:'bear', c1:'#b08968', c2:'#ddb892' },
+        { emoji:'🐼', name:'熊猫捏捏', model:'panda', c1:'#f8f9fa', c2:'#dee2e6' },
+        { emoji:'🦊', name:'小狐狸捏捏', model:'fox', c1:'#ff922b', c2:'#ffd8a8' },
+        { emoji:'🐹', name:'仓鼠捏捏', model:'hamster', c1:'#ffd8a8', c2:'#ffe8cc' },
+        { emoji:'🦄', name:'独角兽捏捏', model:'unicorn', c1:'#e599f7', c2:'#f3d9fa' }
       ],
       dessert: [
-        ['🧁','杯子蛋糕捏捏'],['🍰','奶油蛋糕捏捏'],['🍮','布丁捏捏'],['🍩','甜甜圈捏捏'],['🍪','曲奇捏捏'],['🍫','巧克力捏捏'],['🍡','团子捏捏'],['🍦','冰淇淋捏捏']
+        { emoji:'🧁', name:'杯子蛋糕捏捏', model:'cupcake', c1:'#ffcad4', c2:'#cdb4db' },
+        { emoji:'🍰', name:'奶油蛋糕捏捏', model:'cake', c1:'#ffe5b4', c2:'#ffc8dd' },
+        { emoji:'🍮', name:'布丁捏捏', model:'pudding', c1:'#f4a261', c2:'#ffd6a5' },
+        { emoji:'🍩', name:'甜甜圈捏捏', model:'donut', c1:'#f7cad0', c2:'#ffe5ec' },
+        { emoji:'🍪', name:'曲奇捏捏', model:'cookie', c1:'#c08552', c2:'#e0b589' },
+        { emoji:'🍫', name:'巧克力捏捏', model:'choco', c1:'#6f4e37', c2:'#9c6644' },
+        { emoji:'🍡', name:'团子捏捏', model:'dango', c1:'#ffd6e0', c2:'#fff1f3' },
+        { emoji:'🍦', name:'冰淇淋捏捏', model:'icecream', c1:'#ffd6a5', c2:'#bde0fe' }
       ]
     };
 
@@ -156,83 +212,82 @@
       category: 'fruit',
       toyIndex: 0,
       squeeze: 0,
-      holding: false,
-      holdStart: 0,
+      isSqueezing: false,
+      squeezeStartTime: 0,
+      lastSqueezeTime: 0,
+      fistFactor: 0,
+      smoothedFistFactor: 0,
       exploded: false,
       particles: [],
       crawlers: [],
       waveT: 0,
-      floaters: []
+      floaters: [],
+      cameraStarted: false
     };
 
     class AudioManager {
-      constructor() {
-        this.ctx = null;
-        this.master = null;
-        this.bgNoise = null;
-        this.bgGain = null;
-        this.lastSponge = 0;
-      }
+      constructor() { this.ctx = null; this.master = null; this.bg = null; this.lastSponge = 0; }
       ensure() {
         if (this.ctx) return;
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         this.master = this.ctx.createGain();
-        this.master.gain.value = 0.2;
+        this.master.gain.value = 0.48;
         this.master.connect(this.ctx.destination);
       }
       startBg() {
         this.ensure();
-        if (this.bgNoise) return;
+        if (this.bg) return;
         const len = this.ctx.sampleRate * 2;
         const buffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
         const data = buffer.getChannelData(0);
-        for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * 0.22;
+        for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * 0.27;
         const src = this.ctx.createBufferSource();
         src.buffer = buffer;
         src.loop = true;
         const low = this.ctx.createBiquadFilter();
         low.type = 'lowpass';
-        low.frequency.value = 380;
-        this.bgGain = this.ctx.createGain();
-        this.bgGain.gain.value = 0.0001;
-        src.connect(low); low.connect(this.bgGain); this.bgGain.connect(this.master);
+        low.frequency.value = 430;
+        const g = this.ctx.createGain();
+        g.gain.value = 0.001;
+        src.connect(low); low.connect(g); g.connect(this.master);
         src.start();
-        this.bgNoise = src;
-        this.bgGain.gain.exponentialRampToValueAtTime(0.22, this.ctx.currentTime + 1.8);
+        g.gain.exponentialRampToValueAtTime(0.33, this.ctx.currentTime + 1.2);
+        this.bg = { src, g };
       }
       sponge() {
         this.ensure();
         const now = performance.now();
-        if (now - this.lastSponge < 160) return;
+        if (now - this.lastSponge < 120) return;
         this.lastSponge = now;
         const o = this.ctx.createOscillator();
         const g = this.ctx.createGain();
         const f = this.ctx.createBiquadFilter();
-        f.type = 'bandpass'; f.frequency.value = 520;
-        o.type = 'sine'; o.frequency.value = 160 + Math.random() * 50;
-        g.gain.value = 0.0001;
+        f.type = 'bandpass';
+        f.frequency.value = 620;
+        o.type = 'sawtooth';
+        o.frequency.value = 180 + Math.random() * 80;
         o.connect(f); f.connect(g); g.connect(this.master);
         const t = this.ctx.currentTime;
-        g.gain.exponentialRampToValueAtTime(0.11, t + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
-        o.start(); o.stop(t + 0.18);
+        g.gain.value = 0.0001;
+        g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+        o.start(); o.stop(t + 0.16);
       }
       boom(category) {
         this.ensure();
-        const base = { fruit: 130, crawler: 85, animal: 110, dessert: 145 }[category] || 110;
-        for (let i = 0; i < 3; i++) {
+        const base = { fruit: 155, crawler: 95, animal: 125, dessert: 175 }[category] || 130;
+        for (let i = 0; i < 4; i++) {
           const o = this.ctx.createOscillator();
           const g = this.ctx.createGain();
-          o.type = i === 0 ? 'triangle' : 'sine';
-          o.frequency.setValueAtTime(base * (1 + i * 0.24), this.ctx.currentTime);
-          o.frequency.exponentialRampToValueAtTime(base * 0.55, this.ctx.currentTime + 0.26);
-          g.gain.value = 0.0001;
+          o.type = i % 2 === 0 ? 'triangle' : 'square';
+          o.frequency.setValueAtTime(base * (1 + i * 0.2), this.ctx.currentTime);
+          o.frequency.exponentialRampToValueAtTime(base * 0.5, this.ctx.currentTime + 0.24);
           o.connect(g); g.connect(this.master);
-          const t = this.ctx.currentTime + i * 0.02;
-          g.gain.setValueAtTime(0.0001, t);
-          g.gain.exponentialRampToValueAtTime(0.09, t + 0.02);
-          g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-          o.start(t); o.stop(t + 0.32);
+          const t = this.ctx.currentTime + i * 0.015;
+          g.gain.value = 0.0001;
+          g.gain.exponentialRampToValueAtTime(0.2, t + 0.01);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.27);
+          o.start(t); o.stop(t + 0.3);
         }
       }
     }
@@ -250,13 +305,19 @@
       }
     }
 
-    function startPlay() {
+    async function startPlay() {
       pages.landing.classList.remove('active');
       pages.category.classList.remove('active');
       playUI.style.display = 'block';
-      audio.startBg();
       renderToyButtons();
-      statusText.textContent = '轻轻按压开始解压～';
+      statusText.textContent = '请将手放到镜头前并握拳';
+      try {
+        await setupCameraHands();
+        audio.startBg();
+      } catch (err) {
+        statusText.textContent = '摄像头初始化失败，请检查权限';
+        console.error(err);
+      }
     }
 
     function initCategories() {
@@ -270,6 +331,7 @@
           state.category = key;
           [...categoryGrid.children].forEach(el => el.classList.remove('active'));
           b.classList.add('active');
+          state.toyIndex = 0;
         };
         categoryGrid.appendChild(b);
       });
@@ -279,11 +341,11 @@
       const list = TOYS[state.category];
       currentCategoryLabel.textContent = `当前类别：${CATEGORIES[state.category].name}`;
       toyGrid.innerHTML = '';
-      list.forEach(([emoji, name], i) => {
+      list.forEach((toy, i) => {
         const b = document.createElement('button');
         b.className = 'toy-btn';
         if (i === state.toyIndex) b.classList.add('active');
-        b.innerHTML = `<div class="text-2xl">${emoji}</div><div class="text-xs">${name}</div>`;
+        b.innerHTML = `<div class="text-2xl">${toy.emoji}</div><div class="text-xs">${toy.name}</div>`;
         b.onclick = () => {
           state.toyIndex = i;
           state.exploded = false;
@@ -299,9 +361,8 @@
     function spawnFloaters() {
       floatingLayer.innerHTML = '';
       state.floaters = [];
-      const pool = Object.values(TOYS).flat().map(x => x[0]);
-      const count = 14;
-      for (let i = 0; i < count; i++) {
+      const pool = Object.values(TOYS).flat().map(x => x.emoji);
+      for (let i = 0; i < 14; i++) {
         const e = document.createElement('div');
         e.className = 'float-toy';
         e.textContent = pool[Math.floor(Math.random() * pool.length)];
@@ -317,12 +378,7 @@
     }
 
     function updateFloaters() {
-      const safe = {
-        x: window.innerWidth / 2 - 360,
-        y: window.innerHeight / 2 - 220,
-        w: 720,
-        h: 440
-      };
+      const safe = { x: window.innerWidth / 2 - 360, y: window.innerHeight / 2 - 220, w: 720, h: 440 };
       for (const f of state.floaters) {
         f.x += f.vx; f.y += f.vy; f.rot += 0.2;
         if (f.x < 0 || f.x > window.innerWidth - 30) f.vx *= -1;
@@ -331,9 +387,8 @@
           f.vx += (f.x < window.innerWidth / 2 ? -0.2 : 0.2);
           f.vy += (f.y < window.innerHeight / 2 ? -0.2 : 0.2);
         }
-        const vx = Math.max(-0.9, Math.min(0.9, f.vx));
-        const vy = Math.max(-0.9, Math.min(0.9, f.vy));
-        f.vx = vx; f.vy = vy;
+        f.vx = Math.max(-0.9, Math.min(0.9, f.vx));
+        f.vy = Math.max(-0.9, Math.min(0.9, f.vy));
         f.el.style.transform = `translate(${f.x}px, ${f.y}px) rotate(${f.rot}deg) scale(${f.s})`;
       }
     }
@@ -345,87 +400,179 @@
       ctx.setTransform(dpr,0,0,dpr,0,0);
     }
 
+    function drawSoftHighlight(x, y, rx, ry) {
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      ctx.beginPath();
+      ctx.ellipse(x, y, rx, ry, -0.35, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    function drawModel(toy, cx, cy) {
+      const s = 1 + state.squeeze * 0.22;
+      const sy = 1 - state.squeeze * 0.18;
+      ctx.save();
+      ctx.translate(cx, cy);
+      if (state.squeeze > 0.75) ctx.translate((Math.random()-.5)*2, (Math.random()-.5)*2);
+      ctx.scale(s, sy);
+      ctx.shadowColor = 'rgba(108,88,76,.22)';
+      ctx.shadowBlur = 24;
+      ctx.shadowOffsetY = 12;
+
+      const grad = ctx.createRadialGradient(-20, -30, 10, 0, 0, 200);
+      grad.addColorStop(0, toy.c2);
+      grad.addColorStop(1, toy.c1);
+      ctx.fillStyle = grad;
+
+      switch (toy.model) {
+        case 'peach':
+          ctx.beginPath();
+          ctx.moveTo(0, -84);
+          ctx.bezierCurveTo(85,-110,130,20,0,120);
+          ctx.bezierCurveTo(-130,20,-85,-110,0,-84);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(180,90,95,.35)'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(0,-75); ctx.quadraticCurveTo(-18,20,0,112); ctx.stroke();
+          break;
+        case 'orange':
+        case 'kiwi':
+        case 'lemon':
+          ctx.beginPath(); ctx.ellipse(0, 0, 112, 96, 0, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'strawberry':
+          ctx.beginPath();
+          ctx.moveTo(0,-95);
+          ctx.bezierCurveTo(88,-92,105,-10,50,95);
+          ctx.quadraticCurveTo(0,127,-50,95);
+          ctx.bezierCurveTo(-105,-10,-88,-92,0,-95);
+          ctx.fill();
+          break;
+        case 'melon':
+          ctx.beginPath(); ctx.arc(0, 8, 115, Math.PI, 0); ctx.closePath(); ctx.fill();
+          break;
+        case 'pineapple':
+          ctx.beginPath(); ctx.ellipse(0, 10, 88, 120, 0, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'grape':
+          for (let i=0;i<8;i++) { const a=i/8*Math.PI*2; ctx.beginPath(); ctx.arc(Math.cos(a)*42, Math.sin(a)*36+8, 34, 0, Math.PI*2); ctx.fill(); }
+          ctx.beginPath(); ctx.arc(0,-24,34,0,Math.PI*2); ctx.fill();
+          break;
+        case 'roach':
+        case 'beetle':
+          ctx.beginPath(); ctx.ellipse(0,10,78,110,0,0,Math.PI*2); ctx.fill();
+          break;
+        case 'ant':
+          ctx.beginPath(); ctx.arc(-38, 20, 26, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(0, 15, 30, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(42, 5, 36, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'spider':
+          ctx.beginPath(); ctx.arc(0, 22, 56, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'scorpion':
+          ctx.beginPath(); ctx.ellipse(0, 20, 74, 86, 0, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'worm':
+          ctx.beginPath();
+          ctx.moveTo(-95,0);
+          for(let x=-95;x<=95;x+=12){ ctx.lineTo(x, Math.sin(x/16)*22); }
+          ctx.lineTo(95,35); ctx.lineTo(-95,35); ctx.closePath();
+          ctx.fill();
+          break;
+        case 'fly':
+          ctx.beginPath(); ctx.ellipse(0, 10, 48, 78, 0, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'bunny':
+          ctx.beginPath(); ctx.ellipse(-34,-108,20,54,0,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(34,-108,20,54,0,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(0, 10, 95, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'cat':
+        case 'fox':
+        case 'bear':
+        case 'panda':
+        case 'hamster':
+        case 'dog':
+        case 'unicorn':
+          ctx.beginPath(); ctx.arc(0, 10, 98, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(-72,-48); ctx.lineTo(-26,-102); ctx.lineTo(-10,-26); ctx.closePath(); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(72,-48); ctx.lineTo(26,-102); ctx.lineTo(10,-26); ctx.closePath(); ctx.fill();
+          break;
+        case 'cupcake':
+          ctx.beginPath(); ctx.ellipse(0,-45,92,56,0,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(-75,0); ctx.lineTo(75,0); ctx.lineTo(55,108); ctx.lineTo(-55,108); ctx.closePath(); ctx.fill();
+          break;
+        case 'cake':
+        case 'choco':
+          ctx.beginPath(); ctx.roundRect(-95,-44,190,120,20); ctx.fill();
+          break;
+        case 'pudding':
+          ctx.beginPath(); ctx.moveTo(-75,-40); ctx.quadraticCurveTo(0,-86,75,-40); ctx.lineTo(52,100); ctx.lineTo(-52,100); ctx.closePath(); ctx.fill();
+          break;
+        case 'donut':
+          ctx.beginPath(); ctx.arc(0, 10, 102, 0, Math.PI*2); ctx.fill();
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.beginPath(); ctx.arc(0,10,35,0,Math.PI*2); ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+          break;
+        case 'cookie':
+          ctx.beginPath(); ctx.arc(0,10,98,0,Math.PI*2); ctx.fill();
+          break;
+        case 'dango':
+          ctx.beginPath(); ctx.arc(-52,12,44,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(0,12,44,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(52,12,44,0,Math.PI*2); ctx.fill();
+          break;
+        case 'icecream':
+          ctx.beginPath(); ctx.arc(0,-32,70,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(-45,8); ctx.lineTo(45,8); ctx.lineTo(0,120); ctx.closePath(); ctx.fill();
+          break;
+      }
+
+      ctx.shadowColor = 'transparent';
+      drawSoftHighlight(-36,-34,28,14);
+      ctx.font = '78px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(toy.emoji, 0, 8);
+      ctx.restore();
+
+      ctx.fillStyle = '#7a6758';
+      ctx.font = '31px ZCOOL KuaiLe';
+      ctx.textAlign = 'center';
+      ctx.fillText(toy.name, cx, cy + 205);
+    }
+
     function spawnExplosion() {
       state.exploded = true;
-      state.waveT = 0;
       state.particles = [];
-      const n = state.category === 'crawler' ? 80 : 120;
       const cx = window.innerWidth / 2;
       const cy = window.innerHeight / 2;
+      const n = state.category === 'crawler' ? 92 : 128;
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2;
         const sp = 4 + Math.random() * 11;
-        state.particles.push({
-          x: cx, y: cy, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 1,
-          life: 1, size: 5 + Math.random()*8, hue: Math.random()*16
-        });
+        state.particles.push({ x: cx, y: cy, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 1, life: 1, size: 5 + Math.random()*8, hue: Math.random()*16 });
       }
       if (state.category === 'crawler') {
         state.crawlers = [];
-        const toy = TOYS.crawler[state.toyIndex][0];
-        for (let i = 0; i < 24; i++) {
-          state.crawlers.push({
-            emoji: toy,
-            x: Math.random() * window.innerWidth,
-            y: window.innerHeight * (0.15 + Math.random()*0.7),
-            a: Math.random() * Math.PI * 2,
-            speed: 0.8 + Math.random()*1.2,
-            phase: Math.random() * Math.PI * 2,
-            size: 20 + Math.random()*14
-          });
+        const toy = TOYS.crawler[state.toyIndex].emoji;
+        for (let i = 0; i < 30; i++) {
+          state.crawlers.push({ emoji: toy, x: cx, y: cy, a: Math.random() * Math.PI * 2, speed: 0.9 + Math.random()*1.5, phase: Math.random()*Math.PI*2, size: 20 + Math.random()*14 });
         }
       }
       audio.boom(state.category);
-      statusText.textContent = state.category === 'crawler' ? '呀！好多小爬虫在爬～' : '砰！压力被温柔释放啦～';
+      statusText.textContent = state.category === 'crawler' ? '呀！同类爬虫正在四处乱爬～' : '砰！压力被释放啦～';
       setTimeout(() => {
         state.exploded = false;
         state.particles = [];
         state.crawlers = [];
         state.squeeze = 0;
-        statusText.textContent = '再捏一次也可以哦～';
-      }, 3200);
-    }
-
-    function drawToy(cx, cy) {
-      const [emoji, name] = TOYS[state.category][state.toyIndex];
-      const squishX = 1 + state.squeeze * 0.22;
-      const squishY = 1 - state.squeeze * 0.28;
-      const r = 120;
-      ctx.save();
-      ctx.translate(cx, cy);
-      if (state.squeeze > 0.75) {
-        ctx.translate((Math.random()-0.5)*3, (Math.random()-0.5)*3);
-      }
-      ctx.scale(squishX, squishY);
-      const grad = ctx.createRadialGradient(-25, -30, 10, 0, 0, 180);
-      grad.addColorStop(0, '#fffef9');
-      grad.addColorStop(1, CATEGORIES[state.category].popWave);
-      ctx.fillStyle = grad;
-      ctx.shadowColor = 'rgba(108,88,76,.28)';
-      ctx.shadowBlur = 28;
-      ctx.shadowOffsetY = 14;
-      ctx.beginPath();
-      ctx.arc(0, 0, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowColor = 'transparent';
-      ctx.fillStyle = 'rgba(255,255,255,.65)';
-      ctx.beginPath();
-      ctx.ellipse(-35, -35, 30, 15, -0.4, 0, Math.PI*2);
-      ctx.fill();
-      ctx.font = '86px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(emoji, 0, 5);
-      ctx.restore();
-      ctx.fillStyle = '#7a6758';
-      ctx.font = '32px ZCOOL KuaiLe';
-      ctx.textAlign = 'center';
-      ctx.fillText(name, cx, cy + 205);
+        statusText.textContent = '继续握拳还能再捏一次';
+      }, 2600);
     }
 
     function drawParticles() {
       ctx.save();
-      state.waveT += 0.06;
       for (const p of state.particles) {
         p.x += p.vx; p.y += p.vy; p.vy += 0.18;
         p.life -= 0.02;
@@ -457,49 +604,78 @@
       }
     }
 
-    function insideToy(x, y) {
-      const cx = window.innerWidth / 2;
-      const cy = window.innerHeight / 2;
-      return Math.hypot(x - cx, y - cy) < 130;
+    function getDist(p1, p2) { return Math.hypot(p1.x - p2.x, p1.y - p2.y); }
+
+    function onHandResults(results) {
+      if (!playUI.style.display || playUI.style.display === 'none') return;
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const lm = results.multiHandLandmarks[0];
+        let distTips = 0;
+        distTips += getDist(lm[8], lm[0]);
+        distTips += getDist(lm[12], lm[0]);
+        distTips += getDist(lm[16], lm[0]);
+        distTips += getDist(lm[20], lm[0]);
+        const palmSize = getDist(lm[9], lm[0]) * 4;
+        let ratio = distTips / Math.max(0.0001, palmSize);
+        let rawFist = 1 - ((ratio - 0.7) / 1.3);
+        rawFist = Math.max(0, Math.min(1, rawFist));
+
+        state.smoothedFistFactor = state.smoothedFistFactor * (1 - CONFIG.EMA_ALPHA) + rawFist * CONFIG.EMA_ALPHA;
+        state.fistFactor = state.smoothedFistFactor;
+        state.squeeze = state.fistFactor;
+
+        if (state.fistFactor > CONFIG.FIST_THRESHOLD && !state.exploded) {
+          if (!state.isSqueezing) {
+            state.isSqueezing = true;
+            state.squeezeStartTime = Date.now();
+          }
+          state.lastSqueezeTime = Date.now();
+          audio.sponge();
+          const elapsed = Date.now() - state.squeezeStartTime;
+          const remain = Math.max(0, CONFIG.HOLD_TIME_MS - elapsed);
+          statusText.textContent = remain > 0 ? `握拳保持 ${Math.ceil(remain / 100) / 10}s` : '要爆啦！';
+          if (elapsed >= CONFIG.HOLD_TIME_MS) spawnExplosion();
+        } else if (state.isSqueezing && (Date.now() - state.lastSqueezeTime > CONFIG.GRACE_PERIOD_MS)) {
+          state.isSqueezing = false;
+          if (!state.exploded) statusText.textContent = '请继续握拳 3 秒';
+        }
+      } else {
+        state.smoothedFistFactor *= 0.86;
+        state.squeeze = state.smoothedFistFactor;
+        if (state.isSqueezing && (Date.now() - state.lastSqueezeTime > CONFIG.GRACE_PERIOD_MS)) {
+          state.isSqueezing = false;
+          if (!state.exploded) statusText.textContent = '未检测到手，请对准镜头';
+        }
+      }
     }
 
-    function pointerPos(ev) {
-      if (ev.touches && ev.touches[0]) return { x: ev.touches[0].clientX, y: ev.touches[0].clientY };
-      return { x: ev.clientX, y: ev.clientY };
-    }
+    async function setupCameraHands() {
+      if (state.cameraStarted) return;
+      const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+      hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+      hands.onResults(onHandResults);
 
-    function onDown(ev) {
-      if (pages.landing.classList.contains('active') || pages.category.classList.contains('active')) return;
-      const p = pointerPos(ev);
-      if (!insideToy(p.x, p.y) || state.exploded) return;
-      state.holding = true;
-      state.holdStart = performance.now();
-    }
-
-    function onUp() {
-      state.holding = false;
-      if (!state.exploded) statusText.textContent = '轻轻按压开始解压～';
+      const camera = new Camera(videoElement, {
+        onFrame: async () => { await hands.send({ image: videoElement }); },
+        width: 640,
+        height: 480
+      });
+      await camera.start();
+      cameraPreview.srcObject = videoElement.srcObject;
+      cameraPreview.style.display = 'block';
+      state.cameraStarted = true;
     }
 
     function loop() {
       ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
       ctx.fillStyle = '#f8f1e7';
       ctx.fillRect(0,0,window.innerWidth,window.innerHeight);
-
       if (pages.landing.classList.contains('active')) updateFloaters();
 
       if (!pages.landing.classList.contains('active') && !pages.category.classList.contains('active')) {
         if (!state.exploded) {
-          if (state.holding) {
-            const hold = Math.min(1, (performance.now() - state.holdStart) / 1300);
-            state.squeeze = hold;
-            audio.sponge();
-            statusText.textContent = hold > 0.95 ? '要爆啦！' : `挤压中 ${Math.ceil((1-hold)*10)/10}s`;
-            if (hold >= 1) spawnExplosion();
-          } else {
-            state.squeeze *= 0.86;
-          }
-          drawToy(window.innerWidth/2, window.innerHeight/2);
+          const toy = TOYS[state.category][state.toyIndex];
+          drawModel(toy, window.innerWidth/2, window.innerHeight/2);
         } else {
           drawParticles();
           if (state.category === 'crawler') drawCrawlers();
@@ -509,17 +685,12 @@
     }
 
     document.getElementById('go-category').onclick = () => setPage('category');
-    document.getElementById('start-play').onclick = () => {
+    document.getElementById('start-play').onclick = async () => {
       state.toyIndex = 0;
-      startPlay();
+      await startPlay();
     };
     document.getElementById('back-category').onclick = () => setPage('category');
 
-    window.addEventListener('pointerdown', onDown);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
-    window.addEventListener('touchstart', onDown, {passive:true});
-    window.addEventListener('touchend', onUp);
     window.addEventListener('resize', () => { resize(); spawnFloaters(); });
 
     resize();
