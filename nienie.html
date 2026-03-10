@@ -122,7 +122,7 @@
 
   <section id="play-ui">
     <div class="w-full pt-4 text-center">
-      <div class="inline-block card px-6 py-3 text-lg">对着镜头握拳持续 3 秒即可捏爆（保持在画面中间）</div>
+      <div class="inline-block card px-6 py-3 text-lg">对着镜头握拳持续 3 秒即可捏爆</div>
     </div>
     <div class="absolute top-20 left-1/2 -translate-x-1/2 card px-6 py-3 text-3xl" id="status-text">准备好了吗？</div>
     <div class="absolute bottom-4 left-1/2 -translate-x-1/2 interactive w-[min(96vw,1100px)] card p-4">
@@ -237,22 +237,58 @@
       startBg() {
         this.ensure();
         if (this.bg) return;
-        const len = this.ctx.sampleRate * 2;
-        const buffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * 0.27;
-        const src = this.ctx.createBufferSource();
-        src.buffer = buffer;
-        src.loop = true;
-        const low = this.ctx.createBiquadFilter();
-        low.type = 'lowpass';
-        low.frequency.value = 430;
-        const g = this.ctx.createGain();
-        g.gain.value = 0.001;
-        src.connect(low); low.connect(g); g.connect(this.master);
-        src.start();
-        g.gain.exponentialRampToValueAtTime(0.33, this.ctx.currentTime + 1.2);
-        this.bg = { src, g };
+
+        const notes = [
+          392.0, 440.0, 523.25, 659.25, 587.33, 523.25, 440.0, 392.0,
+          349.23, 392.0, 440.0, 523.25, 493.88, 440.0, 392.0, 329.63
+        ];
+        const beat = 0.52;
+        const t0 = this.ctx.currentTime + 0.1;
+
+        const masterMelody = this.ctx.createGain();
+        masterMelody.gain.value = 0.0001;
+        masterMelody.connect(this.master);
+        masterMelody.gain.exponentialRampToValueAtTime(0.30, t0 + 1.2);
+
+        for (let loop = 0; loop < 64; loop++) {
+          for (let i = 0; i < notes.length; i++) {
+            const t = t0 + (loop * notes.length + i) * beat;
+            const freq = notes[i];
+
+            const o = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            const lp = this.ctx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.value = 1200;
+
+            o.type = i % 3 === 0 ? 'triangle' : 'sine';
+            o.frequency.setValueAtTime(freq, t);
+
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.085, t + 0.09);
+            g.gain.exponentialRampToValueAtTime(0.001, t + beat * 0.92);
+
+            o.connect(lp);
+            lp.connect(g);
+            g.connect(masterMelody);
+            o.start(t);
+            o.stop(t + beat);
+          }
+        }
+
+        const pad = this.ctx.createOscillator();
+        const padGain = this.ctx.createGain();
+        const padFilter = this.ctx.createBiquadFilter();
+        pad.type = 'sine';
+        pad.frequency.value = 196;
+        padFilter.type = 'lowpass';
+        padFilter.frequency.value = 420;
+        padGain.gain.value = 0.001;
+        pad.connect(padFilter); padFilter.connect(padGain); padGain.connect(this.master);
+        pad.start(t0);
+        padGain.gain.exponentialRampToValueAtTime(0.12, t0 + 1.6);
+
+        this.bg = { masterMelody, pad, padGain };
       }
       sponge() {
         this.ensure();
@@ -675,7 +711,9 @@
       if (!pages.landing.classList.contains('active') && !pages.category.classList.contains('active')) {
         if (!state.exploded) {
           const toy = TOYS[state.category][state.toyIndex];
-          drawModel(toy, window.innerWidth/2, window.innerHeight/2);
+          const cx = window.innerWidth * 0.5;
+          const cy = window.innerHeight * 0.5;
+          drawModel(toy, cx, cy);
         } else {
           drawParticles();
           if (state.category === 'crawler') drawCrawlers();
