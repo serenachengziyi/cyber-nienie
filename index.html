@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>治愈系水果捏捏乐 | 解压放松</title>
+    <!-- 引入 Tailwind CSS 构建 UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 MediaPipe 核心库 -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
+        
+        body {
+            /* 柔和米色主题 */
+            background-color: #FDF8F5;
+            font-family: 'ZCOOL KuaiLe', cursive, sans-serif;
+            overflow: hidden; /* 防止出现滚动条 */
+            user-select: none;
+            color: #5A4C40;
+        }
+
+        /* 可爱风的阴影和圆角 */
+        .q-shadow {
+            box-shadow: 0 10px 25px rgba(200, 180, 160, 0.3), inset 0 2px 5px rgba(255, 255, 255, 0.8);
+        }
+
+        .btn-select {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-select:hover {
+            transform: translateY(-5px) scale(1.05);
+        }
+        .btn-select.active {
+            border: 3px solid #FF9A9E;
+            background-color: #FFF0F0;
+            transform: scale(1.1);
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #main-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 隐藏的视频元素，用于MediaPipe读取 */
+        .input_video {
+            display: none;
+        }
+
+        /* 摄像头小窗预览 */
+        #camera-preview {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 160px;
+            height: 120px;
+            border-radius: 15px;
+            border: 4px solid white;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            transform: scaleX(-1); /* 镜像翻转 */
+            z-index: 10;
+            background: #e0d8d0;
+            object-fit: cover;
+        }
+
+        /* 加载动画 */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #FF9A9E;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 倒计时进度环特效 */
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.1s;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center">
+
+    <!-- 启动与加载遮罩 -->
+    <div id="startup-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#FDF8F5] transition-opacity duration-500">
+        <h1 class="text-5xl font-bold mb-6 text-[#FF9A9E] tracking-wider" style="text-shadow: 2px 2px 0px #FFF, 4px 4px 0px rgba(255,154,158,0.2);">水果捏捏乐</h1>
+        <p class="text-xl mb-8 text-[#8C7A6B]">释放压力，治愈心情</p>
+        <button id="start-btn" class="px-8 py-4 bg-gradient-to-r from-[#FF9A9E] to-[#FECFEF] text-white text-2xl rounded-full q-shadow hover:scale-105 transition-transform font-bold">
+            开启治愈之旅
+        </button>
+        <div id="loading-indicator" class="hidden flex-col items-center mt-6">
+            <div class="loader mb-3"></div>
+            <p class="text-[#8C7A6B]">正在唤醒 AI 摄像头与魔法引擎...</p>
+        </div>
+    </div>
+
+    <!-- UI 浮层 -->
+    <div id="ui-layer" class="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between hidden">
+        <!-- 顶部提示 -->
+        <div class="w-full text-center pt-8">
+            <div class="inline-block bg-white/80 backdrop-blur-md px-6 py-3 rounded-full q-shadow text-[#5A4C40] text-lg font-bold">
+                <span id="instruction-text">✋ 将手放在镜头前，慢慢握紧拳头</span>
+            </div>
+        </div>
+
+        <!-- 倒计时进度环 (居中显示) -->
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300" id="progress-container">
+            <svg class="progress-ring" width="200" height="200">
+                <circle stroke="white" stroke-width="12" fill="transparent" r="80" cx="100" cy="100" class="opacity-50"/>
+                <circle id="progress-ring-circle" class="progress-ring__circle" stroke="#FF9A9E" stroke-width="12" fill="transparent" r="80" cx="100" cy="100" stroke-dasharray="502" stroke-dashoffset="502" stroke-linecap="round"/>
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center">
+                <span id="progress-text" class="text-4xl font-bold text-[#FF9A9E] drop-shadow-md">7</span>
+            </div>
+        </div>
+
+        <!-- 底部水果选择器 -->
+        <div class="w-full pb-8 flex justify-center pointer-events-auto">
+            <div class="bg-white/70 backdrop-blur-md px-6 py-4 rounded-3xl q-shadow flex gap-6">
+                <button class="btn-select active w-20 h-20 rounded-2xl bg-white flex flex-col items-center justify-center gap-1 shadow-sm" data-fruit="peach">
+                    <span class="text-3xl">🍑</span>
+                    <span class="text-xs font-bold text-gray-600">蜜桃</span>
+                </button>
+                <button class="btn-select w-20 h-20 rounded-2xl bg-white flex flex-col items-center justify-center gap-1 shadow-sm" data-fruit="orange">
+                    <span class="text-3xl">🍊</span>
+                    <span class="text-xs font-bold text-gray-600">香橙</span>
+                </button>
+                <button class="btn-select w-20 h-20 rounded-2xl bg-white flex flex-col items-center justify-center gap-1 shadow-sm" data-fruit="strawberry">
+                    <span class="text-3xl">🍓</span>
+                    <span class="text-xs font-bold text-gray-600">草莓</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 视频流抓取与预览 -->
+    <video class="input_video"></video>
+    <video id="camera-preview" autoplay playsinline muted class="hidden"></video>
+
+    <!-- 核心渲染画布 -->
+    <div id="canvas-container">
+        <canvas id="main-canvas"></canvas>
+    </div>
+
+    <script>
+        /**
+         * 治愈系水果捏捏乐 - 核心逻辑
+         */
+
+        // ---------------- 1. 基础配置与状态 ----------------
+        const CONFIG = {
+            HOLD_TIME_MS: 7000,         // 捏爆需要保持的时间 (7秒)
+            GRACE_PERIOD_MS: 600,       // 防抖容错时间：松手0.6秒内不重置计时（解决环境干扰）
+            FIST_THRESHOLD: 0.75,       // 判定为“握拳”的阈值 (0=全开, 1=全关)
+            EMA_ALPHA: 0.25,            // 指数移动平均平滑系数 (平滑摄像头数据的跳动)
+            PARTICLE_COUNT: 120         // 爆炸粒子数量
+        };
+
+        const STATE = {
+            currentFruit: 'peach',      // 当前选择的水果
+            fistFactor: 0,              // 当前握紧程度 0~1
+            smoothedFistFactor: 0,      // 平滑后的握紧程度
+            isSqueezing: false,         // 是否正在握紧
+            squeezeStartTime: 0,        // 开始连续握紧的时间戳
+            lastSqueezeTime: 0,         // 最后一次检测到握紧的时间戳 (用于防抖)
+            isExploded: false,          // 是否已爆炸
+            explosionTime: 0,           // 爆炸发生的时间
+            particles: [],              // 物理粒子数组
+            cameraActive: false
+        };
+
+        // 水果的视觉与物理属性
+        const FRUITS = {
+            peach: {
+                name: '蜜桃',
+                baseColor: '#FFB4A2',
+                highlightColor: '#FFCDB2',
+                juiceColor: 'rgba(255, 180, 162, 0.8)',
+                drawFunc: drawPeach
+            },
+            orange: {
+                name: '香橙',
+                baseColor: '#FB8500',
+                highlightColor: '#FFB703',
+                juiceColor: 'rgba(251, 133, 0, 0.8)',
+                drawFunc: drawOrange
+            },
+            strawberry: {
+                name: '草莓',
+                baseColor: '#FF595E',
+                highlightColor: '#FF9296',
+                juiceColor: 'rgba(255, 89, 94, 0.8)',
+                drawFunc: drawStrawberry
+            }
+        };
+
+        // DOM 元素获取
+        const canvas = document.getElementById('main-canvas');
+        const ctx = canvas.getContext('2d', { alpha: false }); // 优化性能
+        const videoElement = document.querySelector('.input_video');
+        const cameraPreview = document.getElementById('camera-preview');
+        const startBtn = document.getElementById('start-btn');
+        const startupScreen = document.getElementById('startup-screen');
+        const uiLayer = document.getElementById('ui-layer');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const instructionText = document.getElementById('instruction-text');
+        const progressContainer = document.getElementById('progress-container');
+        const progressRing = document.getElementById('progress-ring-circle');
+        const progressText = document.getElementById('progress-text');
+        const fruitBtns = document.querySelectorAll('.btn-select');
+
+        // 缩放 Canvas 以适应高分屏，防止模糊
+        function resizeCanvas() {
+            canvas.width = window.innerWidth * window.devicePixelRatio;
+            canvas.height = window.innerHeight * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // ---------------- 2. 图形绘制 (Q版美术系统) ----------------
+
+        // 辅助绘制高光
+        function drawHighlight(x, y, radius, color = 'rgba(255,255,255,0.4)') {
+            ctx.beginPath();
+            ctx.ellipse(x, y, radius * 0.4, radius * 0.15, -Math.PI / 6, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.ellipse(x + radius * 0.15, y - radius * 0.1, radius * 0.1, radius * 0.05, -Math.PI / 4, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
+
+        // 绘制蜜桃 🍑
+        function drawPeach(x, y, scale, squeeze) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // 形变逻辑：捏紧时变扁变宽，稍微抖动
+            let sx = scale * (1 + squeeze * 0.3);
+            let sy = scale * (1 - squeeze * 0.4);
+            // 极限捏紧时加入轻微抖动
+            if (squeeze > 0.8) {
+                ctx.rotate((Math.random() - 0.5) * 0.05);
+                ctx.translate((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
+            }
+            ctx.scale(sx, sy);
+
+            // 阴影
+            ctx.shadowColor = 'rgba(200, 150, 140, 0.4)';
+            ctx.shadowBlur = 30;
+            ctx.shadowOffsetY = 15;
+
+            // 桃子主体 (心形变体)
+            let grad = ctx.createRadialGradient(-30, -30, 10, 0, 0, 120);
+            grad.addColorStop(0, FRUITS.peach.highlightColor);
+            grad.addColorStop(1, FRUITS.peach.baseColor);
+
+            ctx.beginPath();
+            ctx.moveTo(0, -60);
+            ctx.bezierCurveTo(80, -90, 130, 20, 0, 110);
+            ctx.bezierCurveTo(-130, 20, -80, -90, 0, -60);
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            // 桃子中缝
+            ctx.beginPath();
+            ctx.moveTo(0, -60);
+            ctx.quadraticCurveTo(-20, 20, 0, 105);
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(230, 130, 120, 0.4)';
+            ctx.stroke();
+
+            // 绿叶
+            ctx.shadowColor = 'transparent';
+            ctx.beginPath();
+            ctx.moveTo(0, -60);
+            ctx.quadraticCurveTo(40, -100, 60, -80);
+            ctx.quadraticCurveTo(30, -50, 0, -60);
+            ctx.fillStyle = '#A7C957';
+            ctx.fill();
+
+            drawHighlight(-40, -20, 100);
+            ctx.restore();
+        }
+
+        // 绘制香橙 🍊
+        function drawOrange(x, y, scale, squeeze) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            let sx = scale * (1 + squeeze * 0.35);
+            let sy = scale * (1 - squeeze * 0.35);
+            if (squeeze > 0.8) {
+                ctx.rotate((Math.random() - 0.5) * 0.05);
+            }
+            ctx.scale(sx, sy);
+
+            ctx.shadowColor = 'rgba(200, 120, 50, 0.4)';
+            ctx.shadowBlur = 30;
+            ctx.shadowOffsetY = 15;
+
+            // 主体圆形
+            let grad = ctx.createRadialGradient(-20, -20, 10, 0, 0, 110);
+            grad.addColorStop(0, FRUITS.orange.highlightColor);
+            grad.addColorStop(1, FRUITS.orange.baseColor);
+
+            ctx.beginPath();
+            ctx.arc(0, 0, 100, 0, Math.PI * 2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            // 表面肌理 (可爱的麻点)
+            ctx.shadowColor = 'transparent';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            for(let i=0; i<30; i++) {
+                let a = Math.random() * Math.PI * 2;
+                let r = Math.random() * 80;
+                ctx.beginPath();
+                ctx.arc(Math.cos(a)*r, Math.sin(a)*r, 2 + Math.random()*2, 0, Math.PI*2);
+                ctx.fill();
+            }
+
+            // 叶片
+            ctx.beginPath();
+            ctx.moveTo(0, -95);
+            ctx.quadraticCurveTo(50, -130, 70, -100);
+            ctx.quadraticCurveTo(30, -70, 0, -95);
+            ctx.fillStyle = '#6A994E';
+            ctx.fill();
+
+            drawHighlight(-30, -40, 90);
+            ctx.restore();
+        }
+
+        // 绘制草莓 🍓
+        function drawStrawberry(x, y, scale, squeeze) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            let sx = scale * (1 + squeeze * 0.2);
+            let sy = scale * (1 - squeeze * 0.3);
+            if (squeeze > 0.8) {
+                ctx.rotate((Math.random() - 0.5) * 0.05);
+            }
+            ctx.scale(sx, sy);
+
+            ctx.shadowColor = 'rgba(200, 80, 80, 0.4)';
+            ctx.shadowBlur = 30;
+            ctx.shadowOffsetY = 15;
+
+            // 主体倒三角形变体
+            let grad = ctx.createRadialGradient(-20, -40, 10, 0, 0, 120);
+            grad.addColorStop(0, FRUITS.strawberry.highlightColor);
+            grad.addColorStop(1, FRUITS.strawberry.baseColor);
+
+            ctx.beginPath();
+            ctx.moveTo(0, -90);
+            ctx.bezierCurveTo(80, -90, 100, -20, 50, 90);
+            ctx.quadraticCurveTo(0, 120, -50, 90);
+            ctx.bezierCurveTo(-100, -20, -80, -90, 0, -90);
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            // 草莓籽
+            ctx.shadowColor = 'transparent';
+            ctx.fillStyle = '#FFE6A7';
+            for(let i=0; i<40; i++) {
+                let a = Math.random() * Math.PI * 2;
+                let r = Math.random() * 70;
+                let px = Math.cos(a)*r * 0.8;
+                let py = Math.sin(a)*r + 10;
+                ctx.beginPath();
+                ctx.ellipse(px, py, 2, 4, 0, 0, Math.PI*2);
+                ctx.fill();
+            }
+
+            // 顶部绿冠
+            ctx.fillStyle = '#386641';
+            ctx.beginPath();
+            ctx.moveTo(0, -80);
+            ctx.lineTo(30, -100); ctx.lineTo(20, -70);
+            ctx.lineTo(50, -60); ctx.lineTo(25, -50);
+            ctx.lineTo(10, -30); ctx.lineTo(-10, -30);
+            ctx.lineTo(-25, -50); ctx.lineTo(-50, -60);
+            ctx.lineTo(-20, -70); ctx.lineTo(-30, -100);
+            ctx.closePath();
+            ctx.fill();
+
+            drawHighlight(-30, -30, 80);
+            ctx.restore();
+        }
+
+        // ---------------- 3. 粒子系统 (碎裂与果汁) ----------------
+        class Particle {
+            constructor(x, y, type, fruitInfo) {
+                this.x = x;
+                this.y = y;
+                this.type = type; // 'chunk' (碎块) 或 'juice' (果汁)
+                
+                // 爆炸速度：向上和向外溅射
+                let angle = (Math.random() * Math.PI) - Math.PI; // -180 到 0 度
+                let speed = Math.random() * 25 + 10;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed - 5; // 额外向上的动量
+
+                this.gravity = 0.8;
+                this.friction = 0.98;
+                this.life = 1.0;
+                this.decay = Math.random() * 0.015 + 0.01; // 寿命衰减
+                
+                this.size = Math.random() * 15 + 5;
+                this.rotation = Math.random() * Math.PI * 2;
+                this.vRot = (Math.random() - 0.5) * 0.2;
+
+                if (this.type === 'chunk') {
+                    this.color = Math.random() > 0.5 ? fruitInfo.baseColor : fruitInfo.highlightColor;
+                    this.vertices = Math.floor(Math.random() * 3) + 3; // 3-5边形碎块
+                } else {
+                    this.color = fruitInfo.juiceColor;
+                }
+            }
+
+            update() {
+                this.vy += this.gravity;
+                this.vx *= this.friction;
+                this.vy *= this.friction;
+                this.x += this.vx;
+                this.y += this.vy;
+                this.rotation += this.vRot;
+                this.life -= this.decay;
+
+                // 简单的地面碰撞反弹
+                const groundY = window.innerHeight - 50;
+                if (this.y > groundY) {
+                    this.y = groundY;
+                    this.vy *= -0.5; // 损失能量
+                    this.vx *= 0.8;
+                }
+            }
+
+            draw(ctx) {
+                if (this.life <= 0) return;
+                
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                ctx.globalAlpha = this.life;
+
+                if (this.type === 'chunk') {
+                    // 画多边形碎块
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    for (let i = 0; i < this.vertices; i++) {
+                        let a = (i / this.vertices) * Math.PI * 2;
+                        let px = Math.cos(a) * this.size;
+                        let py = Math.sin(a) * this.size;
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                } else {
+                    // 画流体果汁：根据速度拉伸
+                    let speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                    let angle = Math.atan2(this.vy, this.vx);
+                    ctx.rotate(angle - this.rotation); // 抵消原本的旋转，沿速度方向
+                    
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    // 拉伸效果
+                    ctx.ellipse(0, 0, this.size + speed * 0.5, this.size * 0.6, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            }
+        }
+
+        function triggerExplosion() {
+            STATE.isExploded = true;
+            STATE.explosionTime = Date.now();
+            STATE.particles = [];
+            
+            const cx = window.innerWidth / 2;
+            const cy = window.innerHeight / 2;
+            const fruitInfo = FRUITS[STATE.currentFruit];
+
+            // 生成碎块
+            for (let i = 0; i < CONFIG.PARTICLE_COUNT * 0.4; i++) {
+                STATE.particles.push(new Particle(cx + (Math.random()-0.5)*100, cy + (Math.random()-0.5)*100, 'chunk', fruitInfo));
+            }
+            // 生成果汁
+            for (let i = 0; i < CONFIG.PARTICLE_COUNT * 0.6; i++) {
+                STATE.particles.push(new Particle(cx + (Math.random()-0.5)*150, cy + (Math.random()-0.5)*150, 'juice', fruitInfo));
+            }
+
+            instructionText.innerText = "✨ 砰！释放压力！✨";
+            progressContainer.classList.add('opacity-0');
+
+            // 5秒后重置
+            setTimeout(resetToy, 5000);
+        }
+
+        function resetToy() {
+            STATE.isExploded = false;
+            STATE.particles = [];
+            STATE.isSqueezing = false;
+            STATE.smoothedFistFactor = 0;
+            instructionText.innerText = "✋ 将手放在镜头前，慢慢握紧拳头";
+        }
+
+
+        // ---------------- 4. 视觉与动画主循环 ----------------
+        function gameLoop() {
+            // 清理画布，填充米色背景
+            ctx.fillStyle = '#FDF8F5';
+            ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+
+            const cx = window.innerWidth / 2;
+            const cy = window.innerHeight / 2;
+
+            if (!STATE.isExploded) {
+                // 画捏捏乐
+                const fruitInfo = FRUITS[STATE.currentFruit];
+                const baseScale = window.innerWidth < 768 ? 1.2 : 1.8; // 手机上显示小一点，桌面大一点
+                fruitInfo.drawFunc(cx, cy, baseScale, STATE.smoothedFistFactor);
+
+                // 更新倒计时 UI
+                if (STATE.isSqueezing) {
+                    let elapsed = Date.now() - STATE.squeezeStartTime;
+                    let remain = Math.max(0, CONFIG.HOLD_TIME_MS - elapsed);
+                    let seconds = Math.ceil(remain / 1000);
+                    
+                    progressContainer.classList.remove('opacity-0');
+                    progressText.innerText = seconds;
+                    
+                    // 环形进度条计算
+                    const circumference = 80 * 2 * Math.PI;
+                    const offset = circumference - (elapsed / CONFIG.HOLD_TIME_MS) * circumference;
+                    progressRing.style.strokeDashoffset = Math.max(0, offset);
+
+                    if (elapsed > 2000) {
+                        instructionText.innerText = "🔥 保持住！马上就要爆了！";
+                        // 震动效果
+                        canvas.style.transform = `translate(${(Math.random()-0.5)*4}px, ${(Math.random()-0.5)*4}px)`;
+                    } else {
+                        instructionText.innerText = "用力捏紧！保持手势...";
+                        canvas.style.transform = "none";
+                    }
+
+                    if (elapsed >= CONFIG.HOLD_TIME_MS) {
+                        canvas.style.transform = "none";
+                        triggerExplosion();
+                    }
+                } else {
+                    progressContainer.classList.add('opacity-0');
+                    canvas.style.transform = "none";
+                }
+            } else {
+                // 画爆炸粒子
+                let activeParticles = false;
+                for (let p of STATE.particles) {
+                    p.update();
+                    p.draw(ctx);
+                    if (p.life > 0) activeParticles = true;
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ---------------- 5. AI 手部追踪算法 (优化抗干扰) ----------------
+        
+        // 计算两点距离
+        function getDist(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        function onHandResults(results) {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0]; // 只取第一只手
+                
+                // 绘制调试/预览骨架到小视频源 (可选，为了流畅度暂不直接在主画布画骨架)
+                
+                // --- 核心握拳计算逻辑 ---
+                // 参考点：0(手腕), 5,9,13,17(指关节), 8,12,16,20(指尖)
+                // 原理：计算指尖到手腕的距离总和，除以手掌大小(9到0的距离)作为归一化参考
+                
+                let distTips = 0;
+                distTips += getDist(landmarks[8], landmarks[0]);
+                distTips += getDist(landmarks[12], landmarks[0]);
+                distTips += getDist(landmarks[16], landmarks[0]);
+                distTips += getDist(landmarks[20], landmarks[0]);
+
+                let palmSize = getDist(landmarks[9], landmarks[0]) * 4; // 乘以4用于平衡比例
+                
+                // 距离比率：张开时大约 1.8~2.5，握拳时大约 0.5~1.0
+                let ratio = distTips / palmSize;
+                
+                // 映射到 0(张开) ~ 1(握紧)
+                let rawFist = 1 - ((ratio - 0.7) / 1.3);
+                rawFist = Math.max(0, Math.min(1, rawFist)); // Clamp
+
+                // EMA 滤波平滑 (防抖与抗干扰关键)
+                STATE.smoothedFistFactor = STATE.smoothedFistFactor * (1 - CONFIG.EMA_ALPHA) + rawFist * CONFIG.EMA_ALPHA;
+                STATE.fistFactor = STATE.smoothedFistFactor;
+
+                // 状态机判断与容错机制
+                if (STATE.fistFactor > CONFIG.FIST_THRESHOLD) {
+                    if (!STATE.isSqueezing && !STATE.isExploded) {
+                        STATE.isSqueezing = true;
+                        STATE.squeezeStartTime = Date.now();
+                    }
+                    STATE.lastSqueezeTime = Date.now();
+                } else {
+                    // 如果识别到手松开，给予 Grace Period 容错时间，防止因为环境干扰造成的瞬间断开
+                    if (STATE.isSqueezing && (Date.now() - STATE.lastSqueezeTime > CONFIG.GRACE_PERIOD_MS)) {
+                        STATE.isSqueezing = false;
+                        instructionText.innerText = "✋ 将手放在镜头前，慢慢握紧拳头";
+                    }
+                }
+            } else {
+                // 没检测到手，缓缓恢复张开状态
+                STATE.smoothedFistFactor *= 0.8;
+                if (STATE.isSqueezing && (Date.now() - STATE.lastSqueezeTime > CONFIG.GRACE_PERIOD_MS)) {
+                    STATE.isSqueezing = false;
+                    instructionText.innerText = "✋ 未检测到手部，请对准镜头";
+                }
+            }
+        }
+
+        // ---------------- 6. 系统初始化与交互绑定 ----------------
+
+        // 绑定按钮事件
+        fruitBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                fruitBtns.forEach(b => b.classList.remove('active'));
+                const target = e.currentTarget;
+                target.classList.add('active');
+                STATE.currentFruit = target.dataset.fruit;
+            });
+        });
+
+        startBtn.addEventListener('click', async () => {
+            startBtn.classList.add('hidden');
+            loadingIndicator.classList.remove('hidden');
+            loadingIndicator.classList.add('flex');
+
+            try {
+                // 初始化 MediaPipe Hands
+                const hands = new Hands({
+                    locateFile: (file) => {
+                        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                    }
+                });
+
+                hands.setOptions({
+                    maxNumHands: 1,
+                    modelComplexity: 1,
+                    minDetectionConfidence: 0.6,
+                    minTrackingConfidence: 0.6
+                });
+
+                hands.onResults(onHandResults);
+
+                // 启动摄像头
+                const camera = new Camera(videoElement, {
+                    onFrame: async () => {
+                        await hands.send({image: videoElement});
+                        // 将摄像头画面镜像绘制到预览窗口 (可选视觉反馈)
+                        // 若需节约性能，此部分预览可省略
+                    },
+                    width: 640,
+                    height: 480
+                });
+
+                await camera.start();
+                
+                // 将视频流连接到预览器
+                cameraPreview.srcObject = videoElement.srcObject;
+                cameraPreview.classList.remove('hidden');
+
+                // 启动成功，隐藏启动屏，显示 UI，开始渲染循环
+                startupScreen.style.opacity = '0';
+                setTimeout(() => {
+                    startupScreen.classList.add('hidden');
+                    uiLayer.classList.remove('hidden');
+                    requestAnimationFrame(gameLoop);
+                }, 500);
+
+            } catch (err) {
+                console.error(err);
+                loadingIndicator.innerHTML = `<p class="text-red-500 font-bold">无法访问摄像头或加载AI模型失败。<br>请确保授予摄像头权限并处于网络良好环境。</p>`;
+            }
+        });
+
+    </script>
+</body>
+</html>
