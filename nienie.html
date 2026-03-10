@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>萌系童话捏捏乐</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
+    :root {
+      --beige: #f8f1e7;
+      --ink: #6c584c;
+      --pink: #ff9eb5;
+      --mint: #9bd4c3;
+      --cream: #fff7ef;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at 20% 20%, #fff8f0 0%, var(--beige) 45%, #f1e5d7 100%);
+      font-family: 'ZCOOL KuaiLe', cursive, system-ui, sans-serif;
+      color: var(--ink);
+      user-select: none;
+    }
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+    }
+    .screen.active { display: flex; }
+    .card {
+      background: rgba(255,255,255,0.78);
+      backdrop-filter: blur(8px);
+      border: 3px solid rgba(255,255,255,.8);
+      border-radius: 28px;
+      box-shadow: 0 16px 35px rgba(108,88,76,.15), inset 0 3px 8px rgba(255,255,255,.9);
+    }
+    .toy-btn {
+      border-radius: 18px;
+      border: 2px solid #f4d7bd;
+      background: linear-gradient(165deg, #fff, #fef5e9);
+      transition: all .2s ease;
+      padding: .6rem .65rem;
+      min-width: 88px;
+      text-align: center;
+    }
+    .toy-btn:hover { transform: translateY(-2px) scale(1.03); }
+    .toy-btn.active { border-color: var(--pink); box-shadow: 0 8px 18px rgba(255,158,181,.28); }
+    .cat-btn.active { border-color: #ff8fab; background: #fff2f6; }
+    #floating-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+    }
+    .float-toy {
+      position: absolute;
+      font-size: 44px;
+      filter: drop-shadow(0 8px 12px rgba(108,88,76,.22));
+      opacity: .82;
+      will-change: transform;
+    }
+    #play-canvas {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+    }
+    #play-ui {
+      position: absolute;
+      inset: 0;
+      z-index: 15;
+      pointer-events: none;
+      display: none;
+    }
+    #play-ui .interactive { pointer-events: auto; }
+  </style>
+</head>
+<body>
+  <canvas id="play-canvas"></canvas>
+  <div id="floating-layer"></div>
+
+  <section id="page-landing" class="screen active">
+    <div class="card w-[min(92vw,760px)] p-8 text-center relative z-20">
+      <h1 class="text-5xl md:text-6xl text-pink-400 mb-4" style="text-shadow:2px 2px 0 #fff;">萌系童话捏捏乐</h1>
+      <p class="text-xl md:text-2xl mb-8">随机漂浮的捏捏正在陪你放松 ✨</p>
+      <button id="go-category" class="px-8 py-4 rounded-full text-2xl text-white bg-gradient-to-r from-pink-300 to-rose-400 shadow-lg hover:scale-105 transition-transform">进入类别选择</button>
+      <p class="mt-5 text-sm opacity-75">背景是米色治愈风，浮动图形不会遮挡按钮与文字。</p>
+    </div>
+  </section>
+
+  <section id="page-category" class="screen">
+    <div class="card w-[min(95vw,960px)] p-6 md:p-8">
+      <h2 class="text-4xl text-center mb-5">选择捏捏类别</h2>
+      <div id="category-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+      <div class="text-center">
+        <button id="start-play" class="cat-btn px-7 py-3 rounded-full text-white text-2xl bg-gradient-to-r from-amber-300 to-orange-300 border-2 border-amber-200 hover:scale-105 transition-transform">开始捏捏解压</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="play-ui" class="">
+    <div class="w-full pt-4 text-center">
+      <div class="inline-block card px-6 py-3 text-lg">按住中间捏捏球挤压，松开恢复；长按会捏爆！</div>
+    </div>
+    <div class="absolute top-20 left-1/2 -translate-x-1/2 card px-6 py-3 text-3xl" id="status-text">准备好了吗？</div>
+    <div class="absolute bottom-4 left-1/2 -translate-x-1/2 interactive w-[min(96vw,1100px)] card p-4">
+      <div class="flex justify-between items-center mb-3">
+        <div id="current-category" class="text-xl"></div>
+        <button id="back-category" class="px-4 py-1 rounded-full bg-white border border-amber-200">返回分类</button>
+      </div>
+      <div id="toy-grid" class="grid grid-cols-4 md:grid-cols-8 gap-2"></div>
+    </div>
+  </section>
+
+  <script>
+    const pages = {
+      landing: document.getElementById('page-landing'),
+      category: document.getElementById('page-category')
+    };
+    const playUI = document.getElementById('play-ui');
+    const canvas = document.getElementById('play-canvas');
+    const ctx = canvas.getContext('2d');
+    const statusText = document.getElementById('status-text');
+    const categoryGrid = document.getElementById('category-grid');
+    const toyGrid = document.getElementById('toy-grid');
+    const currentCategoryLabel = document.getElementById('current-category');
+    const floatingLayer = document.getElementById('floating-layer');
+
+    const CATEGORIES = {
+      fruit: { name: '水果捏捏', icon: '🍓', popWave: '#ffb5c8', boom: 180 },
+      crawler: { name: '爬虫捏捏', icon: '🪳', popWave: '#d2b48c', boom: 95 },
+      animal: { name: '动物捏捏', icon: '🐰', popWave: '#c8d9ff', boom: 140 },
+      dessert: { name: '甜品捏捏', icon: '🧁', popWave: '#ffd8a8', boom: 165 }
+    };
+
+    const TOYS = {
+      fruit: [
+        ['🍑','蜜桃'],['🍊','香橙'],['🍓','草莓'],['🍉','西瓜'],['🍍','菠萝'],['🍇','葡萄'],['🍋','柠檬'],['🥝','奇异果']
+      ],
+      crawler: [
+        ['🪳','蟑螂捏捏'],['🐞','瓢虫捏捏'],['🐜','蚂蚁捏捏'],['🕷️','蜘蛛捏捏'],['🦂','蝎子捏捏'],['🪲','甲虫捏捏'],['🐛','毛毛虫捏捏'],['🪰','小飞虫捏捏']
+      ],
+      animal: [
+        ['🐰','兔兔捏捏'],['🐱','喵咪捏捏'],['🐶','小狗捏捏'],['🐻','小熊捏捏'],['🐼','熊猫捏捏'],['🦊','小狐狸捏捏'],['🐹','仓鼠捏捏'],['🦄','独角兽捏捏']
+      ],
+      dessert: [
+        ['🧁','杯子蛋糕捏捏'],['🍰','奶油蛋糕捏捏'],['🍮','布丁捏捏'],['🍩','甜甜圈捏捏'],['🍪','曲奇捏捏'],['🍫','巧克力捏捏'],['🍡','团子捏捏'],['🍦','冰淇淋捏捏']
+      ]
+    };
+
+    const state = {
+      category: 'fruit',
+      toyIndex: 0,
+      squeeze: 0,
+      holding: false,
+      holdStart: 0,
+      exploded: false,
+      particles: [],
+      crawlers: [],
+      waveT: 0,
+      floaters: []
+    };
+
+    class AudioManager {
+      constructor() {
+        this.ctx = null;
+        this.master = null;
+        this.bgNoise = null;
+        this.bgGain = null;
+        this.lastSponge = 0;
+      }
+      ensure() {
+        if (this.ctx) return;
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.2;
+        this.master.connect(this.ctx.destination);
+      }
+      startBg() {
+        this.ensure();
+        if (this.bgNoise) return;
+        const len = this.ctx.sampleRate * 2;
+        const buffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * 0.22;
+        const src = this.ctx.createBufferSource();
+        src.buffer = buffer;
+        src.loop = true;
+        const low = this.ctx.createBiquadFilter();
+        low.type = 'lowpass';
+        low.frequency.value = 380;
+        this.bgGain = this.ctx.createGain();
+        this.bgGain.gain.value = 0.0001;
+        src.connect(low); low.connect(this.bgGain); this.bgGain.connect(this.master);
+        src.start();
+        this.bgNoise = src;
+        this.bgGain.gain.exponentialRampToValueAtTime(0.22, this.ctx.currentTime + 1.8);
+      }
+      sponge() {
+        this.ensure();
+        const now = performance.now();
+        if (now - this.lastSponge < 160) return;
+        this.lastSponge = now;
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        const f = this.ctx.createBiquadFilter();
+        f.type = 'bandpass'; f.frequency.value = 520;
+        o.type = 'sine'; o.frequency.value = 160 + Math.random() * 50;
+        g.gain.value = 0.0001;
+        o.connect(f); f.connect(g); g.connect(this.master);
+        const t = this.ctx.currentTime;
+        g.gain.exponentialRampToValueAtTime(0.11, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+        o.start(); o.stop(t + 0.18);
+      }
+      boom(category) {
+        this.ensure();
+        const base = { fruit: 130, crawler: 85, animal: 110, dessert: 145 }[category] || 110;
+        for (let i = 0; i < 3; i++) {
+          const o = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          o.type = i === 0 ? 'triangle' : 'sine';
+          o.frequency.setValueAtTime(base * (1 + i * 0.24), this.ctx.currentTime);
+          o.frequency.exponentialRampToValueAtTime(base * 0.55, this.ctx.currentTime + 0.26);
+          g.gain.value = 0.0001;
+          o.connect(g); g.connect(this.master);
+          const t = this.ctx.currentTime + i * 0.02;
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.09, t + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+          o.start(t); o.stop(t + 0.32);
+        }
+      }
+    }
+    const audio = new AudioManager();
+
+    function setPage(name) {
+      Object.values(pages).forEach(p => p.classList.remove('active'));
+      pages[name].classList.add('active');
+      if (name === 'landing') {
+        floatingLayer.style.display = 'block';
+        playUI.style.display = 'none';
+      } else if (name === 'category') {
+        floatingLayer.style.display = 'none';
+        playUI.style.display = 'none';
+      }
+    }
+
+    function startPlay() {
+      pages.landing.classList.remove('active');
+      pages.category.classList.remove('active');
+      playUI.style.display = 'block';
+      audio.startBg();
+      renderToyButtons();
+      statusText.textContent = '轻轻按压开始解压～';
+    }
+
+    function initCategories() {
+      categoryGrid.innerHTML = '';
+      Object.entries(CATEGORIES).forEach(([key, val]) => {
+        const b = document.createElement('button');
+        b.className = 'cat-btn toy-btn text-lg';
+        if (key === state.category) b.classList.add('active');
+        b.innerHTML = `<div class="text-3xl">${val.icon}</div><div>${val.name}</div>`;
+        b.onclick = () => {
+          state.category = key;
+          [...categoryGrid.children].forEach(el => el.classList.remove('active'));
+          b.classList.add('active');
+        };
+        categoryGrid.appendChild(b);
+      });
+    }
+
+    function renderToyButtons() {
+      const list = TOYS[state.category];
+      currentCategoryLabel.textContent = `当前类别：${CATEGORIES[state.category].name}`;
+      toyGrid.innerHTML = '';
+      list.forEach(([emoji, name], i) => {
+        const b = document.createElement('button');
+        b.className = 'toy-btn';
+        if (i === state.toyIndex) b.classList.add('active');
+        b.innerHTML = `<div class="text-2xl">${emoji}</div><div class="text-xs">${name}</div>`;
+        b.onclick = () => {
+          state.toyIndex = i;
+          state.exploded = false;
+          state.particles = [];
+          state.crawlers = [];
+          [...toyGrid.children].forEach(el => el.classList.remove('active'));
+          b.classList.add('active');
+        };
+        toyGrid.appendChild(b);
+      });
+    }
+
+    function spawnFloaters() {
+      floatingLayer.innerHTML = '';
+      state.floaters = [];
+      const pool = Object.values(TOYS).flat().map(x => x[0]);
+      const count = 14;
+      for (let i = 0; i < count; i++) {
+        const e = document.createElement('div');
+        e.className = 'float-toy';
+        e.textContent = pool[Math.floor(Math.random() * pool.length)];
+        const x = Math.random() * window.innerWidth;
+        const y = Math.random() * window.innerHeight;
+        const vx = (Math.random() - 0.5) * 0.5;
+        const vy = (Math.random() - 0.5) * 0.5;
+        const rot = Math.random() * 360;
+        const s = 0.85 + Math.random() * 0.6;
+        state.floaters.push({el:e,x,y,vx,vy,rot,s});
+        floatingLayer.appendChild(e);
+      }
+    }
+
+    function updateFloaters() {
+      const safe = {
+        x: window.innerWidth / 2 - 360,
+        y: window.innerHeight / 2 - 220,
+        w: 720,
+        h: 440
+      };
+      for (const f of state.floaters) {
+        f.x += f.vx; f.y += f.vy; f.rot += 0.2;
+        if (f.x < 0 || f.x > window.innerWidth - 30) f.vx *= -1;
+        if (f.y < 0 || f.y > window.innerHeight - 30) f.vy *= -1;
+        if (f.x > safe.x && f.x < safe.x + safe.w && f.y > safe.y && f.y < safe.y + safe.h) {
+          f.vx += (f.x < window.innerWidth / 2 ? -0.2 : 0.2);
+          f.vy += (f.y < window.innerHeight / 2 ? -0.2 : 0.2);
+        }
+        const vx = Math.max(-0.9, Math.min(0.9, f.vx));
+        const vy = Math.max(-0.9, Math.min(0.9, f.vy));
+        f.vx = vx; f.vy = vy;
+        f.el.style.transform = `translate(${f.x}px, ${f.y}px) rotate(${f.rot}deg) scale(${f.s})`;
+      }
+    }
+
+    function resize() {
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+
+    function spawnExplosion() {
+      state.exploded = true;
+      state.waveT = 0;
+      state.particles = [];
+      const n = state.category === 'crawler' ? 80 : 120;
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 4 + Math.random() * 11;
+        state.particles.push({
+          x: cx, y: cy, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 1,
+          life: 1, size: 5 + Math.random()*8, hue: Math.random()*16
+        });
+      }
+      if (state.category === 'crawler') {
+        state.crawlers = [];
+        const toy = TOYS.crawler[state.toyIndex][0];
+        for (let i = 0; i < 24; i++) {
+          state.crawlers.push({
+            emoji: toy,
+            x: Math.random() * window.innerWidth,
+            y: window.innerHeight * (0.15 + Math.random()*0.7),
+            a: Math.random() * Math.PI * 2,
+            speed: 0.8 + Math.random()*1.2,
+            phase: Math.random() * Math.PI * 2,
+            size: 20 + Math.random()*14
+          });
+        }
+      }
+      audio.boom(state.category);
+      statusText.textContent = state.category === 'crawler' ? '呀！好多小爬虫在爬～' : '砰！压力被温柔释放啦～';
+      setTimeout(() => {
+        state.exploded = false;
+        state.particles = [];
+        state.crawlers = [];
+        state.squeeze = 0;
+        statusText.textContent = '再捏一次也可以哦～';
+      }, 3200);
+    }
+
+    function drawToy(cx, cy) {
+      const [emoji, name] = TOYS[state.category][state.toyIndex];
+      const squishX = 1 + state.squeeze * 0.22;
+      const squishY = 1 - state.squeeze * 0.28;
+      const r = 120;
+      ctx.save();
+      ctx.translate(cx, cy);
+      if (state.squeeze > 0.75) {
+        ctx.translate((Math.random()-0.5)*3, (Math.random()-0.5)*3);
+      }
+      ctx.scale(squishX, squishY);
+      const grad = ctx.createRadialGradient(-25, -30, 10, 0, 0, 180);
+      grad.addColorStop(0, '#fffef9');
+      grad.addColorStop(1, CATEGORIES[state.category].popWave);
+      ctx.fillStyle = grad;
+      ctx.shadowColor = 'rgba(108,88,76,.28)';
+      ctx.shadowBlur = 28;
+      ctx.shadowOffsetY = 14;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.fillStyle = 'rgba(255,255,255,.65)';
+      ctx.beginPath();
+      ctx.ellipse(-35, -35, 30, 15, -0.4, 0, Math.PI*2);
+      ctx.fill();
+      ctx.font = '86px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(emoji, 0, 5);
+      ctx.restore();
+      ctx.fillStyle = '#7a6758';
+      ctx.font = '32px ZCOOL KuaiLe';
+      ctx.textAlign = 'center';
+      ctx.fillText(name, cx, cy + 205);
+    }
+
+    function drawParticles() {
+      ctx.save();
+      state.waveT += 0.06;
+      for (const p of state.particles) {
+        p.x += p.vx; p.y += p.vy; p.vy += 0.18;
+        p.life -= 0.02;
+        if (p.life <= 0) continue;
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = CATEGORIES[state.category].popWave;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, p.size, p.size*0.7, p.hue, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.restore();
+      state.particles = state.particles.filter(p => p.life > 0);
+    }
+
+    function drawCrawlers() {
+      for (const c of state.crawlers) {
+        c.phase += 0.15;
+        c.a += (Math.random() - 0.5) * 0.25;
+        c.x += Math.cos(c.a) * c.speed;
+        c.y += Math.sin(c.a) * c.speed + Math.sin(c.phase) * 0.45;
+        if (c.x < 15 || c.x > window.innerWidth - 15) c.a = Math.PI - c.a;
+        if (c.y < 40 || c.y > window.innerHeight - 15) c.a = -c.a;
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate(c.a);
+        ctx.font = `${c.size}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+        ctx.fillText(c.emoji, 0, 0);
+        ctx.restore();
+      }
+    }
+
+    function insideToy(x, y) {
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+      return Math.hypot(x - cx, y - cy) < 130;
+    }
+
+    function pointerPos(ev) {
+      if (ev.touches && ev.touches[0]) return { x: ev.touches[0].clientX, y: ev.touches[0].clientY };
+      return { x: ev.clientX, y: ev.clientY };
+    }
+
+    function onDown(ev) {
+      if (pages.landing.classList.contains('active') || pages.category.classList.contains('active')) return;
+      const p = pointerPos(ev);
+      if (!insideToy(p.x, p.y) || state.exploded) return;
+      state.holding = true;
+      state.holdStart = performance.now();
+    }
+
+    function onUp() {
+      state.holding = false;
+      if (!state.exploded) statusText.textContent = '轻轻按压开始解压～';
+    }
+
+    function loop() {
+      ctx.clearRect(0,0,window.innerWidth,window.innerHeight);
+      ctx.fillStyle = '#f8f1e7';
+      ctx.fillRect(0,0,window.innerWidth,window.innerHeight);
+
+      if (pages.landing.classList.contains('active')) updateFloaters();
+
+      if (!pages.landing.classList.contains('active') && !pages.category.classList.contains('active')) {
+        if (!state.exploded) {
+          if (state.holding) {
+            const hold = Math.min(1, (performance.now() - state.holdStart) / 1300);
+            state.squeeze = hold;
+            audio.sponge();
+            statusText.textContent = hold > 0.95 ? '要爆啦！' : `挤压中 ${Math.ceil((1-hold)*10)/10}s`;
+            if (hold >= 1) spawnExplosion();
+          } else {
+            state.squeeze *= 0.86;
+          }
+          drawToy(window.innerWidth/2, window.innerHeight/2);
+        } else {
+          drawParticles();
+          if (state.category === 'crawler') drawCrawlers();
+        }
+      }
+      requestAnimationFrame(loop);
+    }
+
+    document.getElementById('go-category').onclick = () => setPage('category');
+    document.getElementById('start-play').onclick = () => {
+      state.toyIndex = 0;
+      startPlay();
+    };
+    document.getElementById('back-category').onclick = () => setPage('category');
+
+    window.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    window.addEventListener('touchstart', onDown, {passive:true});
+    window.addEventListener('touchend', onUp);
+    window.addEventListener('resize', () => { resize(); spawnFloaters(); });
+
+    resize();
+    spawnFloaters();
+    initCategories();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
