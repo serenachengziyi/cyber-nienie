@@ -443,6 +443,17 @@
       ctx.fill();
     }
 
+
+    function getToyAnchor() {
+      const rect = statusText.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.bottom + 210;
+      return {
+        x: Math.max(170, Math.min(window.innerWidth - 170, cx)),
+        y: Math.max(220, Math.min(window.innerHeight - 190, cy))
+      };
+    }
+
     function drawModel(toy, cx, cy) {
       const s = 1 + state.squeeze * 0.22;
       const sy = 1 - state.squeeze * 0.18;
@@ -581,8 +592,9 @@
     function spawnExplosion() {
       state.exploded = true;
       state.particles = [];
-      const cx = window.innerWidth / 2;
-      const cy = window.innerHeight / 2;
+      const anchor = getToyAnchor();
+      const cx = anchor.x;
+      const cy = anchor.y;
       const n = state.category === 'crawler' ? 92 : 128;
       for (let i = 0; i < n; i++) {
         const a = Math.random() * Math.PI * 2;
@@ -711,9 +723,8 @@
       if (!pages.landing.classList.contains('active') && !pages.category.classList.contains('active')) {
         if (!state.exploded) {
           const toy = TOYS[state.category][state.toyIndex];
-          const cx = window.innerWidth * 0.5;
-          const cy = window.innerHeight * 0.5;
-          drawModel(toy, cx, cy);
+          const anchor = getToyAnchor();
+          drawModel(toy, anchor.x, anchor.y);
         } else {
           drawParticles();
           if (state.category === 'crawler') drawCrawlers();
