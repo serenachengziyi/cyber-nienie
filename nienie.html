@@ -125,6 +125,7 @@
       <div class="inline-block card px-6 py-3 text-lg">对着镜头握拳持续 3 秒即可捏爆</div>
     </div>
     <div class="absolute top-20 left-1/2 -translate-x-1/2 card px-6 py-3 text-3xl" id="status-text">准备好了吗？</div>
+    <div id="toy-anchor" class="absolute left-1/2 -translate-x-1/2 top-[320px] w-2 h-2 rounded-full opacity-0 pointer-events-none"></div>
     <div class="absolute bottom-4 left-1/2 -translate-x-1/2 interactive w-[min(96vw,1100px)] card p-4">
       <div class="flex justify-between items-center mb-3">
         <div id="current-category" class="text-xl"></div>
@@ -150,6 +151,7 @@
     const canvas = document.getElementById('play-canvas');
     const ctx = canvas.getContext('2d');
     const statusText = document.getElementById('status-text');
+    const toyAnchorElement = document.getElementById('toy-anchor');
     const categoryGrid = document.getElementById('category-grid');
     const toyGrid = document.getElementById('toy-grid');
     const currentCategoryLabel = document.getElementById('current-category');
@@ -443,15 +445,15 @@
       ctx.fill();
     }
 
-
     function getToyAnchor() {
-      const rect = statusText.getBoundingClientRect();
-      // 始终锁定在视口水平正中，避免不同浏览器/缩放下出现右偏。
-      const cx = window.innerWidth * 0.5;
-      // 垂直位置贴着提示框下方，且限制在可视区域中部。
-      const preferredY = rect.bottom + 170;
-      const cy = Math.max(260, Math.min(window.innerHeight * 0.62, preferredY));
-      return { x: cx, y: cy };
+      const rect = toyAnchorElement.getBoundingClientRect();
+      // 统一读取 DOM 固定锚点，避免不同缩放/浏览器下偏移。
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      if (Number.isFinite(x) && Number.isFinite(y) && x > 0 && y > 0) {
+        return { x, y };
+      }
+      return { x: window.innerWidth * 0.5, y: 320 };
     }
 
     function drawModel(toy, cx, cy) {
