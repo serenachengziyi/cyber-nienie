@@ -446,12 +446,12 @@
 
     function getToyAnchor() {
       const rect = statusText.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.bottom + 210;
-      return {
-        x: Math.max(170, Math.min(window.innerWidth - 170, cx)),
-        y: Math.max(220, Math.min(window.innerHeight - 190, cy))
-      };
+      // 始终锁定在视口水平正中，避免不同浏览器/缩放下出现右偏。
+      const cx = window.innerWidth * 0.5;
+      // 垂直位置贴着提示框下方，且限制在可视区域中部。
+      const preferredY = rect.bottom + 170;
+      const cy = Math.max(260, Math.min(window.innerHeight * 0.62, preferredY));
+      return { x: cx, y: cy };
     }
 
     function drawModel(toy, cx, cy) {
