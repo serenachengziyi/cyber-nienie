@@ -1,720 +1,1258 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>治愈系水果捏捏乐 | 解压放松</title>
-    <!-- 引入 Tailwind CSS 构建 UI -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 MediaPipe 核心库 -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
-        
-        body {
-            /* 柔和米色主题 */
-            background-color: #FDF8F5;
-            font-family: 'ZCOOL KuaiLe', cursive, sans-serif;
-            overflow: hidden; /* 防止出现滚动条 */
-            user-select: none;
-            color: #5A4C40;
-        }
-
-        /* 可爱风的阴影和圆角 */
-        .q-shadow {
-            box-shadow: 0 10px 25px rgba(200, 180, 160, 0.3), inset 0 2px 5px rgba(255, 255, 255, 0.8);
-        }
-
-        .btn-select {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .btn-select:hover {
-            transform: translateY(-5px) scale(1.05);
-        }
-        .btn-select.active {
-            border: 3px solid #FF9A9E;
-            background-color: #FFF0F0;
-            transform: scale(1.1);
-        }
-
-        #canvas-container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-        }
-
-        #main-canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-
-        /* 隐藏的视频元素，用于MediaPipe读取 */
-        .input_video {
-            display: none;
-        }
-
-        /* 摄像头小窗预览 */
-        #camera-preview {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 160px;
-            height: 120px;
-            border-radius: 15px;
-            border: 4px solid white;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-            transform: scaleX(-1); /* 镜像翻转 */
-            z-index: 10;
-            background: #e0d8d0;
-            object-fit: cover;
-        }
-
-        /* 加载动画 */
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #FF9A9E;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* 倒计时进度环特效 */
-        .progress-ring__circle {
-            transition: stroke-dashoffset 0.1s;
-            transform: rotate(-90deg);
-            transform-origin: 50% 50%;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#f8f1e7" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>萌系童话捏捏乐 - 移动版</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
+    
+    :root {
+      --beige: #f8f1e7;
+      --ink: #6c584c;
+      --pink: #ff9eb5;
+      --touch-min: 44px;
+    }
+    
+    * { 
+      box-sizing: border-box; 
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 20% 20%, #fff8f0 0%, var(--beige) 45%, #f1e5d7 100%);
+      font-family: 'ZCOOL KuaiLe', cursive, system-ui, sans-serif;
+      color: var(--ink);
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    
+    /* 响应式字体大小 */
+    html {
+      font-size: clamp(14px, 3.5vw, 18px);
+    }
+    
+    @media (min-width: 768px) {
+      html { font-size: 16px; }
+    }
+    
+    /* 屏幕容器 */
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    .screen.active { display: flex; }
+    
+    /* 卡片样式 - 移动优化 */
+    .card {
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 2px solid rgba(255,255,255,.9);
+      border-radius: clamp(16px, 5vw, 28px);
+      box-shadow: 0 12px 30px rgba(108,88,76,.12), inset 0 2px 6px rgba(255,255,255,.95);
+    }
+    
+    /* 触控友好的按钮 */
+    .btn-touch {
+      min-height: var(--touch-min);
+      min-width: var(--touch-min);
+      padding: 12px 20px;
+      border-radius: 50px;
+      font-size: clamp(16px, 4vw, 20px);
+      font-weight: bold;
+      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: none;
+      outline: none;
+      -webkit-appearance: none;
+    }
+    
+    .btn-touch:active {
+      transform: scale(0.96);
+      opacity: 0.9;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #ff9eb5 0%, #ff7eb3 100%);
+      color: white;
+      box-shadow: 0 4px 15px rgba(255, 158, 181, 0.4);
+    }
+    
+    .btn-secondary {
+      background: linear-gradient(135deg, #ffd8a8 0%, #ffb088 100%);
+      color: #6c584c;
+      box-shadow: 0 4px 15px rgba(255, 176, 136, 0.3);
+    }
+    
+    /* 玩具按钮 - 网格布局 */
+    .toy-btn {
+      min-height: var(--touch-min);
+      min-width: var(--touch-min);
+      border-radius: clamp(12px, 3vw, 18px);
+      border: 2px solid #f4d7bd;
+      background: linear-gradient(165deg, #fff, #fef5e9);
+      transition: all 0.15s ease;
+      padding: clamp(8px, 2vw, 12px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+      -webkit-appearance: none;
+    }
+    
+    .toy-btn:active {
+      transform: scale(0.95);
+      background: #fff8f3;
+    }
+    
+    .toy-btn.active {
+      border-color: var(--pink);
+      background: #fff2f6;
+      box-shadow: 0 6px 16px rgba(255, 158, 181, 0.35);
+    }
+    
+    .toy-btn .emoji {
+      font-size: clamp(24px, 6vw, 32px);
+      line-height: 1;
+    }
+    
+    .toy-btn .name {
+      font-size: clamp(11px, 2.8vw, 13px);
+      font-weight: 600;
+      color: #6c584c;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    
+    /* 类别按钮 */
+    .cat-btn {
+      min-height: var(--touch-min);
+      border-radius: 16px;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: linear-gradient(165deg, #fff, #fef5e9);
+      border: 2px solid #f4d7bd;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    
+    .cat-btn:active {
+      transform: scale(0.97);
+    }
+    
+    .cat-btn.active {
+      border-color: #ff8fab;
+      background: #fff2f6;
+    }
+    
+    .cat-btn .icon {
+      font-size: clamp(32px, 8vw, 40px);
+    }
+    
+    .cat-btn .label {
+      font-size: clamp(13px, 3.2vw, 15px);
+      font-weight: 600;
+      color: #6c584c;
+    }
+    
+    /* 浮动层 */
+    #floating-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+    }
+    
+    .float-toy {
+      position: absolute;
+      font-size: clamp(32px, 8vw, 44px);
+      filter: drop-shadow(0 6px 10px rgba(108,88,76,.2));
+      opacity: .75;
+      will-change: transform;
+    }
+    
+    /* 游戏画布 */
+    #play-canvas {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+    }
+    
+    /* 游戏UI层 */
+    #play-ui {
+      position: absolute;
+      inset: 0;
+      z-index: 15;
+      pointer-events: none;
+      display: none;
+    }
+    
+    #play-ui .interactive { pointer-events: auto; }
+    
+    /* 视频元素 */
+    .input_video { display: none; }
+    
+    /* 摄像头预览 - 移动端优化 */
+    #camera-preview {
+      position: absolute;
+      right: clamp(8px, 2vw, 18px);
+      bottom: clamp(8px, 2vw, 18px);
+      width: clamp(120px, 30vw, 190px);
+      height: clamp(90px, 22vw, 140px);
+      border-radius: 12px;
+      border: 3px solid rgba(255,255,255,.95);
+      box-shadow: 0 6px 14px rgba(0,0,0,.1);
+      object-fit: cover;
+      transform: scaleX(-1);
+      z-index: 30;
+      display: none;
+      background: #e9dfd0;
+    }
+    
+    /* 底部导航栏 - 移动端 */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-top: 1px solid rgba(244, 215, 189, 0.5);
+      padding: env(safe-area-inset-bottom) 16px 16px;
+      z-index: 100;
+      display: none;
+    }
+    
+    .bottom-nav.active { display: block; }
+    
+    .nav-content {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    
+    /* 状态提示 - 移动端优化 */
+    .status-pill {
+      display: inline-block;
+      background: rgba(255,255,255,0.9);
+      backdrop-filter: blur(8px);
+      padding: 10px 20px;
+      border-radius: 50px;
+      font-size: clamp(14px, 3.5vw, 16px);
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      border: 1px solid rgba(255,255,255,0.8);
+    }
+    
+    /* 进度环 */
+    .progress-ring-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    
+    .progress-ring-container.visible {
+      opacity: 1;
+    }
+    
+    .progress-ring {
+      width: clamp(140px, 35vw, 200px);
+      height: clamp(140px, 35vw, 200px);
+    }
+    
+    .progress-ring-circle {
+      transition: stroke-dashoffset 0.1s linear;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+    
+    /* 响应式网格 */
+    .grid-categories {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: clamp(12px, 3vw, 16px);
+    }
+    
+    @media (min-width: 640px) {
+      .grid-categories {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+    
+    .grid-toys {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: clamp(8px, 2vw, 12px);
+    }
+    
+    @media (min-width: 480px) {
+      .grid-toys {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+    
+    @media (min-width: 640px) {
+      .grid-toys {
+        grid-template-columns: repeat(8, 1fr);
+      }
+    }
+    
+    /* 加载动画 */
+    .loader {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #f3e8d2;
+      border-top: 4px solid #ff9eb5;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* 触摸反馈效果 */
+    .touch-feedback {
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .touch-feedback::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(255,255,255,0.4) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    
+    .touch-feedback:active::after {
+      opacity: 1;
+    }
+    
+    /* 安全区域适配 */
+    .safe-top { padding-top: env(safe-area-inset-top); }
+    .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+    
+    /* 横屏提示 */
+    .orientation-tip {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(108, 88, 76, 0.95);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      color: white;
+      text-align: center;
+      padding: 20px;
+    }
+    
+    @media (orientation: landscape) and (max-height: 500px) {
+      .orientation-tip {
+        display: flex;
+      }
+    }
+    
+    /* 隐藏滚动条 */
+    ::-webkit-scrollbar {
+      display: none;
+    }
+    
+    /* 防止文本缩放 */
+    body {
+      -webkit-text-size-adjust: 100%;
+    }
+  </style>
 </head>
-<body class="flex flex-col items-center justify-center">
+<body>
+  <!-- 横屏提示 -->
+  <div class="orientation-tip">
+    <div style="font-size: 64px; margin-bottom: 20px;">📱</div>
+    <h2 style="font-size: 24px; margin-bottom: 12px;">请竖屏使用</h2>
+    <p style="font-size: 16px; opacity: 0.8;">为了获得最佳体验，请将手机竖直放置</p>
+  </div>
 
-    <!-- 启动与加载遮罩 -->
-    <div id="startup-screen" class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#FDF8F5] transition-opacity duration-500">
-        <h1 class="text-5xl font-bold mb-6 text-[#FF9A9E] tracking-wider" style="text-shadow: 2px 2px 0px #FFF, 4px 4px 0px rgba(255,154,158,0.2);">水果捏捏乐</h1>
-        <p class="text-xl mb-8 text-[#8C7A6B]">释放压力，治愈心情</p>
-        <button id="start-btn" class="px-8 py-4 bg-gradient-to-r from-[#FF9A9E] to-[#FECFEF] text-white text-2xl rounded-full q-shadow hover:scale-105 transition-transform font-bold">
-            开启治愈之旅
+  <!-- 画布层 -->
+  <canvas id="play-canvas"></canvas>
+  <div id="floating-layer"></div>
+
+  <!-- 视频元素 -->
+  <video class="input_video" playsinline muted></video>
+  <video id="camera-preview" autoplay playsinline muted></video>
+
+  <!-- 启动页 -->
+  <section id="page-landing" class="screen active">
+    <div class="card w-[92%] max-w-[420px] p-6 sm:p-8 text-center">
+      <div style="font-size: clamp(48px, 12vw, 64px); margin-bottom: 16px;">🎯</div>
+      <h1 class="text-3xl sm:text-4xl md:text-5xl text-pink-400 mb-3" style="text-shadow:2px 2px 0 #fff;">萌系童话捏捏乐</h1>
+      <p class="text-base sm:text-lg mb-6 opacity-80">随机漂浮的捏捏正在陪你放松 ✨</p>
+      <button id="go-category" class="btn-touch btn-primary w-full touch-feedback">
+        <span>进入类别选择</span>
+        <span style="font-size: 20px;">→</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- 类别选择页 -->
+  <section id="page-category" class="screen">
+    <div class="card w-[94%] max-w-[600px] p-4 sm:p-6 md:p-8 flex flex-col max-h-[90vh]">
+      <h2 class="text-2xl sm:text-3xl text-center mb-4 safe-top">选择捏捏类别</h2>
+      <div id="category-grid" class="grid-categories mb-4 overflow-y-auto" style="flex: 1;"></div>
+      <div class="text-center safe-bottom">
+        <button id="start-play" class="btn-touch btn-secondary w-full sm:w-auto touch-feedback">
+          <span style="font-size: 20px;">📷</span>
+          <span>开启摄像头捏捏</span>
         </button>
-        <div id="loading-indicator" class="hidden flex-col items-center mt-6">
-            <div class="loader mb-3"></div>
-            <p class="text-[#8C7A6B]">正在唤醒 AI 摄像头与魔法引擎...</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 游戏UI层 -->
+  <section id="play-ui">
+    <!-- 顶部状态栏 -->
+    <div class="w-full pt-safe px-4 pt-3">
+      <div class="flex justify-center">
+        <div class="status-pill">
+          <span id="instruction-text">✋ 将手放在镜头前，慢慢握紧拳头</span>
         </div>
+      </div>
     </div>
 
-    <!-- UI 浮层 -->
-    <div id="ui-layer" class="absolute inset-0 pointer-events-none z-20 flex flex-col justify-between hidden">
-        <!-- 顶部提示 -->
-        <div class="w-full text-center pt-8">
-            <div class="inline-block bg-white/80 backdrop-blur-md px-6 py-3 rounded-full q-shadow text-[#5A4C40] text-lg font-bold">
-                <span id="instruction-text">✋ 将手放在镜头前，慢慢握紧拳头</span>
-            </div>
-        </div>
-
-        <!-- 倒计时进度环 (居中显示) -->
-        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300" id="progress-container">
-            <svg class="progress-ring" width="200" height="200">
-                <circle stroke="white" stroke-width="12" fill="transparent" r="80" cx="100" cy="100" class="opacity-50"/>
-                <circle id="progress-ring-circle" class="progress-ring__circle" stroke="#FF9A9E" stroke-width="12" fill="transparent" r="80" cx="100" cy="100" stroke-dasharray="502" stroke-dashoffset="502" stroke-linecap="round"/>
-            </svg>
-            <div class="absolute inset-0 flex items-center justify-center">
-                <span id="progress-text" class="text-4xl font-bold text-[#FF9A9E] drop-shadow-md">7</span>
-            </div>
-        </div>
-
-        <!-- 底部水果选择器 -->
-        <div class="w-full pb-8 flex justify-center pointer-events-auto">
-            <div class="bg-white/70 backdrop-blur-md px-6 py-4 rounded-3xl q-shadow flex gap-6">
-                <button class="btn-select active w-20 h-20 rounded-2xl bg-white flex flex-col items-center justify-center gap-1 shadow-sm" data-fruit="peach">
-                    <span class="text-3xl">🍑</span>
-                    <span class="text-xs font-bold text-gray-600">蜜桃</span>
-                </button>
-                <button class="btn-select w-20 h-20 rounded-2xl bg-white flex flex-col items-center justify-center gap-1 shadow-sm" data-fruit="orange">
-                    <span class="text-3xl">🍊</span>
-                    <span class="text-xs font-bold text-gray-600">香橙</span>
-                </button>
-                <button class="btn-select w-20 h-20 rounded-2xl bg-white flex flex-col items-center justify-center gap-1 shadow-sm" data-fruit="strawberry">
-                    <span class="text-3xl">🍓</span>
-                    <span class="text-xs font-bold text-gray-600">草莓</span>
-                </button>
-            </div>
-        </div>
+    <!-- 倒计时进度环 -->
+    <div id="progress-container" class="progress-ring-container">
+      <svg class="progress-ring" viewBox="0 0 200 200">
+        <circle stroke="rgba(255,255,255,0.5)" stroke-width="12" fill="transparent" r="80" cx="100" cy="100"/>
+        <circle id="progress-ring-circle" class="progress-ring-circle" stroke="#ff9eb5" stroke-width="12" fill="transparent" r="80" cx="100" cy="100" stroke-dasharray="502" stroke-dashoffset="502" stroke-linecap="round"/>
+      </svg>
+      <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
+        <span id="progress-text" style="font-size: clamp(36px, 9vw, 48px); font-weight: bold; color: #ff9eb5;">3</span>
+      </div>
     </div>
 
-    <!-- 视频流抓取与预览 -->
-    <video class="input_video"></video>
-    <video id="camera-preview" autoplay playsinline muted class="hidden"></video>
+  </section>
 
-    <!-- 核心渲染画布 -->
-    <div id="canvas-container">
-        <canvas id="main-canvas"></canvas>
+  <!-- 底部导航栏 -->
+  <nav id="bottom-nav" class="bottom-nav">
+    <div class="nav-content">
+      <div class="flex justify-between items-center mb-3">
+        <div id="current-category" class="text-base font-semibold"></div>
+        <button id="back-category" class="btn-touch" style="padding: 8px 16px; font-size: 14px; background: rgba(255,255,255,0.8); border: 1px solid #f4d7bd;">
+          <span>←</span> 返回
+        </button>
+      </div>
+      <div id="toy-grid" class="grid-toys"></div>
     </div>
+  </nav>
 
-    <script>
-        /**
-         * 治愈系水果捏捏乐 - 核心逻辑
-         */
+  <!-- 加载提示 -->
+  <div id="loading-overlay" class="screen" style="background: rgba(248, 241, 231, 0.95); z-index: 100;">
+    <div class="text-center">
+      <div class="loader mb-4" style="margin: 0 auto;"></div>
+      <p class="text-lg font-semibold">正在启动摄像头...</p>
+      <p class="text-sm opacity-70 mt-2">请允许摄像头权限</p>
+    </div>
+  </div>
 
-        // ---------------- 1. 基础配置与状态 ----------------
-        const CONFIG = {
-            HOLD_TIME_MS: 7000,         // 捏爆需要保持的时间 (7秒)
-            GRACE_PERIOD_MS: 600,       // 防抖容错时间：松手0.6秒内不重置计时（解决环境干扰）
-            FIST_THRESHOLD: 0.75,       // 判定为“握拳”的阈值 (0=全开, 1=全关)
-            EMA_ALPHA: 0.25,            // 指数移动平均平滑系数 (平滑摄像头数据的跳动)
-            PARTICLE_COUNT: 120         // 爆炸粒子数量
-        };
+  <script>
+    // ==================== 配置 ====================
+    const CONFIG = {
+      HOLD_TIME_MS: 3000,
+      GRACE_PERIOD_MS: 450,
+      FIST_THRESHOLD: 0.72,
+      EMA_ALPHA: 0.24,
+      TOUCH_FEEDBACK_DURATION: 100
+    };
 
-        const STATE = {
-            currentFruit: 'peach',      // 当前选择的水果
-            fistFactor: 0,              // 当前握紧程度 0~1
-            smoothedFistFactor: 0,      // 平滑后的握紧程度
-            isSqueezing: false,         // 是否正在握紧
-            squeezeStartTime: 0,        // 开始连续握紧的时间戳
-            lastSqueezeTime: 0,         // 最后一次检测到握紧的时间戳 (用于防抖)
-            isExploded: false,          // 是否已爆炸
-            explosionTime: 0,           // 爆炸发生的时间
-            particles: [],              // 物理粒子数组
-            cameraActive: false
-        };
+    // ==================== 状态管理 ====================
+    const state = {
+      category: 'fruit',
+      toyIndex: 0,
+      squeeze: 0,
+      isSqueezing: false,
+      squeezeStartTime: 0,
+      lastSqueezeTime: 0,
+      fistFactor: 0,
+      smoothedFistFactor: 0,
+      exploded: false,
+      particles: [],
+      crawlers: [],
+      waveT: 0,
+      floaters: [],
+      cameraStarted: false,
+      isLoading: false
+    };
 
-        // 水果的视觉与物理属性
-        const FRUITS = {
-            peach: {
-                name: '蜜桃',
-                baseColor: '#FFB4A2',
-                highlightColor: '#FFCDB2',
-                juiceColor: 'rgba(255, 180, 162, 0.8)',
-                drawFunc: drawPeach
-            },
-            orange: {
-                name: '香橙',
-                baseColor: '#FB8500',
-                highlightColor: '#FFB703',
-                juiceColor: 'rgba(251, 133, 0, 0.8)',
-                drawFunc: drawOrange
-            },
-            strawberry: {
-                name: '草莓',
-                baseColor: '#FF595E',
-                highlightColor: '#FF9296',
-                juiceColor: 'rgba(255, 89, 94, 0.8)',
-                drawFunc: drawStrawberry
-            }
-        };
+    // ==================== DOM元素 ====================
+    const pages = {
+      landing: document.getElementById('page-landing'),
+      category: document.getElementById('page-category')
+    };
+    const playUI = document.getElementById('play-ui');
+    const canvas = document.getElementById('play-canvas');
+    const ctx = canvas.getContext('2d');
+    const statusText = document.getElementById('instruction-text');
+    const categoryGrid = document.getElementById('category-grid');
+    const toyGrid = document.getElementById('toy-grid');
+    const currentCategoryLabel = document.getElementById('current-category');
+    const floatingLayer = document.getElementById('floating-layer');
+    const bottomNav = document.getElementById('bottom-nav');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const progressContainer = document.getElementById('progress-container');
+    const progressRing = document.getElementById('progress-ring-circle');
+    const progressText = document.getElementById('progress-text');
 
-        // DOM 元素获取
-        const canvas = document.getElementById('main-canvas');
-        const ctx = canvas.getContext('2d', { alpha: false }); // 优化性能
-        const videoElement = document.querySelector('.input_video');
-        const cameraPreview = document.getElementById('camera-preview');
-        const startBtn = document.getElementById('start-btn');
-        const startupScreen = document.getElementById('startup-screen');
-        const uiLayer = document.getElementById('ui-layer');
-        const loadingIndicator = document.getElementById('loading-indicator');
-        const instructionText = document.getElementById('instruction-text');
-        const progressContainer = document.getElementById('progress-container');
-        const progressRing = document.getElementById('progress-ring-circle');
-        const progressText = document.getElementById('progress-text');
-        const fruitBtns = document.querySelectorAll('.btn-select');
+    const videoElement = document.querySelector('.input_video');
+    const cameraPreview = document.getElementById('camera-preview');
 
-        // 缩放 Canvas 以适应高分屏，防止模糊
-        function resizeCanvas() {
-            canvas.width = window.innerWidth * window.devicePixelRatio;
-            canvas.height = window.innerHeight * window.devicePixelRatio;
-            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-        }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+    // ==================== 数据 ====================
+    const CATEGORIES = {
+      fruit: { name: '水果捏捏', icon: '🍓', popWave: '#ffb5c8' },
+      crawler: { name: '爬虫捏捏', icon: '🪳', popWave: '#d2b48c' },
+      animal: { name: '动物捏捏', icon: '🐰', popWave: '#c8d9ff' },
+      dessert: { name: '甜品捏捏', icon: '🧁', popWave: '#ffd8a8' }
+    };
 
-        // ---------------- 2. 图形绘制 (Q版美术系统) ----------------
+    const TOYS = {
+      fruit: [
+        { emoji:'🍑', name:'蜜桃', model:'peach', c1:'#ffb09e', c2:'#ffd2c8' },
+        { emoji:'🍊', name:'香橙', model:'orange', c1:'#ffa62b', c2:'#ffd166' },
+        { emoji:'🍓', name:'草莓', model:'strawberry', c1:'#ff5d73', c2:'#ff98a8' },
+        { emoji:'🍉', name:'西瓜', model:'melon', c1:'#2f9e44', c2:'#ff6b6b' },
+        { emoji:'🍍', name:'菠萝', model:'pineapple', c1:'#ffd43b', c2:'#74b816' },
+        { emoji:'🍇', name:'葡萄', model:'grape', c1:'#9d4edd', c2:'#c77dff' },
+        { emoji:'🍋', name:'柠檬', model:'lemon', c1:'#ffd93d', c2:'#fff3bf' },
+        { emoji:'🥝', name:'奇异果', model:'kiwi', c1:'#7cb342', c2:'#cddc39' }
+      ],
+      crawler: [
+        { emoji:'🪳', name:'蟑螂', model:'roach', c1:'#8d6e63', c2:'#bcaaa4' },
+        { emoji:'🐞', name:'瓢虫', model:'ladybug', c1:'#ef5350', c2:'#ff8a80' },
+        { emoji:'🐜', name:'蚂蚁', model:'ant', c1:'#6d4c41', c2:'#a1887f' },
+        { emoji:'🕷️', name:'蜘蛛', model:'spider', c1:'#607d8b', c2:'#90a4ae' },
+        { emoji:'🦂', name:'蝎子', model:'scorpion', c1:'#795548', c2:'#a1887f' },
+        { emoji:'🪲', name:'甲虫', model:'beetle', c1:'#455a64', c2:'#78909c' },
+        { emoji:'🐛', name:'毛毛虫', model:'worm', c1:'#81c784', c2:'#c5e1a5' },
+        { emoji:'🪰', name:'小飞虫', model:'fly', c1:'#90a4ae', c2:'#cfd8dc' }
+      ],
+      animal: [
+        { emoji:'🐰', name:'兔兔', model:'bunny', c1:'#ffe3ec', c2:'#fff' },
+        { emoji:'🐱', name:'喵咪', model:'cat', c1:'#ffd8b1', c2:'#fff3e0' },
+        { emoji:'🐶', name:'小狗', model:'dog', c1:'#f4c095', c2:'#ffe8cc' },
+        { emoji:'🐻', name:'小熊', model:'bear', c1:'#b08968', c2:'#ddb892' },
+        { emoji:'🐼', name:'熊猫', model:'panda', c1:'#f8f9fa', c2:'#dee2e6' },
+        { emoji:'🦊', name:'小狐狸', model:'fox', c1:'#ff922b', c2:'#ffd8a8' },
+        { emoji:'🐹', name:'仓鼠', model:'hamster', c1:'#ffd8a8', c2:'#ffe8cc' },
+        { emoji:'🦄', name:'独角兽', model:'unicorn', c1:'#e599f7', c2:'#f3d9fa' }
+      ],
+      dessert: [
+        { emoji:'🧁', name:'杯子蛋糕', model:'cupcake', c1:'#ffcad4', c2:'#cdb4db' },
+        { emoji:'🍰', name:'奶油蛋糕', model:'cake', c1:'#ffe5b4', c2:'#ffc8dd' },
+        { emoji:'🍮', name:'布丁', model:'pudding', c1:'#f4a261', c2:'#ffd6a5' },
+        { emoji:'🍩', name:'甜甜圈', model:'donut', c1:'#f7cad0', c2:'#ffe5ec' },
+        { emoji:'🍪', name:'曲奇', model:'cookie', c1:'#c08552', c2:'#e0b589' },
+        { emoji:'🍫', name:'巧克力', model:'choco', c1:'#6f4e37', c2:'#9c6644' },
+        { emoji:'🍡', name:'团子', model:'dango', c1:'#ffd6e0', c2:'#fff1f3' },
+        { emoji:'🍦', name:'冰淇淋', model:'icecream', c1:'#ffd6a5', c2:'#bde0fe' }
+      ]
+    };
 
-        // 辅助绘制高光
-        function drawHighlight(x, y, radius, color = 'rgba(255,255,255,0.4)') {
-            ctx.beginPath();
-            ctx.ellipse(x, y, radius * 0.4, radius * 0.15, -Math.PI / 6, 0, Math.PI * 2);
-            ctx.fillStyle = color;
-            ctx.fill();
-            
-            ctx.beginPath();
-            ctx.ellipse(x + radius * 0.15, y - radius * 0.1, radius * 0.1, radius * 0.05, -Math.PI / 4, 0, Math.PI * 2);
-            ctx.fillStyle = color;
-            ctx.fill();
-        }
-
-        // 绘制蜜桃 🍑
-        function drawPeach(x, y, scale, squeeze) {
-            ctx.save();
-            ctx.translate(x, y);
-            
-            // 形变逻辑：捏紧时变扁变宽，稍微抖动
-            let sx = scale * (1 + squeeze * 0.3);
-            let sy = scale * (1 - squeeze * 0.4);
-            // 极限捏紧时加入轻微抖动
-            if (squeeze > 0.8) {
-                ctx.rotate((Math.random() - 0.5) * 0.05);
-                ctx.translate((Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5);
-            }
-            ctx.scale(sx, sy);
-
-            // 阴影
-            ctx.shadowColor = 'rgba(200, 150, 140, 0.4)';
-            ctx.shadowBlur = 30;
-            ctx.shadowOffsetY = 15;
-
-            // 桃子主体 (心形变体)
-            let grad = ctx.createRadialGradient(-30, -30, 10, 0, 0, 120);
-            grad.addColorStop(0, FRUITS.peach.highlightColor);
-            grad.addColorStop(1, FRUITS.peach.baseColor);
-
-            ctx.beginPath();
-            ctx.moveTo(0, -60);
-            ctx.bezierCurveTo(80, -90, 130, 20, 0, 110);
-            ctx.bezierCurveTo(-130, 20, -80, -90, 0, -60);
-            ctx.fillStyle = grad;
-            ctx.fill();
-
-            // 桃子中缝
-            ctx.beginPath();
-            ctx.moveTo(0, -60);
-            ctx.quadraticCurveTo(-20, 20, 0, 105);
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = 'rgba(230, 130, 120, 0.4)';
-            ctx.stroke();
-
-            // 绿叶
-            ctx.shadowColor = 'transparent';
-            ctx.beginPath();
-            ctx.moveTo(0, -60);
-            ctx.quadraticCurveTo(40, -100, 60, -80);
-            ctx.quadraticCurveTo(30, -50, 0, -60);
-            ctx.fillStyle = '#A7C957';
-            ctx.fill();
-
-            drawHighlight(-40, -20, 100);
-            ctx.restore();
-        }
-
-        // 绘制香橙 🍊
-        function drawOrange(x, y, scale, squeeze) {
-            ctx.save();
-            ctx.translate(x, y);
-            
-            let sx = scale * (1 + squeeze * 0.35);
-            let sy = scale * (1 - squeeze * 0.35);
-            if (squeeze > 0.8) {
-                ctx.rotate((Math.random() - 0.5) * 0.05);
-            }
-            ctx.scale(sx, sy);
-
-            ctx.shadowColor = 'rgba(200, 120, 50, 0.4)';
-            ctx.shadowBlur = 30;
-            ctx.shadowOffsetY = 15;
-
-            // 主体圆形
-            let grad = ctx.createRadialGradient(-20, -20, 10, 0, 0, 110);
-            grad.addColorStop(0, FRUITS.orange.highlightColor);
-            grad.addColorStop(1, FRUITS.orange.baseColor);
-
-            ctx.beginPath();
-            ctx.arc(0, 0, 100, 0, Math.PI * 2);
-            ctx.fillStyle = grad;
-            ctx.fill();
-
-            // 表面肌理 (可爱的麻点)
-            ctx.shadowColor = 'transparent';
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-            for(let i=0; i<30; i++) {
-                let a = Math.random() * Math.PI * 2;
-                let r = Math.random() * 80;
-                ctx.beginPath();
-                ctx.arc(Math.cos(a)*r, Math.sin(a)*r, 2 + Math.random()*2, 0, Math.PI*2);
-                ctx.fill();
-            }
-
-            // 叶片
-            ctx.beginPath();
-            ctx.moveTo(0, -95);
-            ctx.quadraticCurveTo(50, -130, 70, -100);
-            ctx.quadraticCurveTo(30, -70, 0, -95);
-            ctx.fillStyle = '#6A994E';
-            ctx.fill();
-
-            drawHighlight(-30, -40, 90);
-            ctx.restore();
-        }
-
-        // 绘制草莓 🍓
-        function drawStrawberry(x, y, scale, squeeze) {
-            ctx.save();
-            ctx.translate(x, y);
-            
-            let sx = scale * (1 + squeeze * 0.2);
-            let sy = scale * (1 - squeeze * 0.3);
-            if (squeeze > 0.8) {
-                ctx.rotate((Math.random() - 0.5) * 0.05);
-            }
-            ctx.scale(sx, sy);
-
-            ctx.shadowColor = 'rgba(200, 80, 80, 0.4)';
-            ctx.shadowBlur = 30;
-            ctx.shadowOffsetY = 15;
-
-            // 主体倒三角形变体
-            let grad = ctx.createRadialGradient(-20, -40, 10, 0, 0, 120);
-            grad.addColorStop(0, FRUITS.strawberry.highlightColor);
-            grad.addColorStop(1, FRUITS.strawberry.baseColor);
-
-            ctx.beginPath();
-            ctx.moveTo(0, -90);
-            ctx.bezierCurveTo(80, -90, 100, -20, 50, 90);
-            ctx.quadraticCurveTo(0, 120, -50, 90);
-            ctx.bezierCurveTo(-100, -20, -80, -90, 0, -90);
-            ctx.fillStyle = grad;
-            ctx.fill();
-
-            // 草莓籽
-            ctx.shadowColor = 'transparent';
-            ctx.fillStyle = '#FFE6A7';
-            for(let i=0; i<40; i++) {
-                let a = Math.random() * Math.PI * 2;
-                let r = Math.random() * 70;
-                let px = Math.cos(a)*r * 0.8;
-                let py = Math.sin(a)*r + 10;
-                ctx.beginPath();
-                ctx.ellipse(px, py, 2, 4, 0, 0, Math.PI*2);
-                ctx.fill();
-            }
-
-            // 顶部绿冠
-            ctx.fillStyle = '#386641';
-            ctx.beginPath();
-            ctx.moveTo(0, -80);
-            ctx.lineTo(30, -100); ctx.lineTo(20, -70);
-            ctx.lineTo(50, -60); ctx.lineTo(25, -50);
-            ctx.lineTo(10, -30); ctx.lineTo(-10, -30);
-            ctx.lineTo(-25, -50); ctx.lineTo(-50, -60);
-            ctx.lineTo(-20, -70); ctx.lineTo(-30, -100);
-            ctx.closePath();
-            ctx.fill();
-
-            drawHighlight(-30, -30, 80);
-            ctx.restore();
-        }
-
-        // ---------------- 3. 粒子系统 (碎裂与果汁) ----------------
-        class Particle {
-            constructor(x, y, type, fruitInfo) {
-                this.x = x;
-                this.y = y;
-                this.type = type; // 'chunk' (碎块) 或 'juice' (果汁)
-                
-                // 爆炸速度：向上和向外溅射
-                let angle = (Math.random() * Math.PI) - Math.PI; // -180 到 0 度
-                let speed = Math.random() * 25 + 10;
-                this.vx = Math.cos(angle) * speed;
-                this.vy = Math.sin(angle) * speed - 5; // 额外向上的动量
-
-                this.gravity = 0.8;
-                this.friction = 0.98;
-                this.life = 1.0;
-                this.decay = Math.random() * 0.015 + 0.01; // 寿命衰减
-                
-                this.size = Math.random() * 15 + 5;
-                this.rotation = Math.random() * Math.PI * 2;
-                this.vRot = (Math.random() - 0.5) * 0.2;
-
-                if (this.type === 'chunk') {
-                    this.color = Math.random() > 0.5 ? fruitInfo.baseColor : fruitInfo.highlightColor;
-                    this.vertices = Math.floor(Math.random() * 3) + 3; // 3-5边形碎块
-                } else {
-                    this.color = fruitInfo.juiceColor;
-                }
-            }
-
-            update() {
-                this.vy += this.gravity;
-                this.vx *= this.friction;
-                this.vy *= this.friction;
-                this.x += this.vx;
-                this.y += this.vy;
-                this.rotation += this.vRot;
-                this.life -= this.decay;
-
-                // 简单的地面碰撞反弹
-                const groundY = window.innerHeight - 50;
-                if (this.y > groundY) {
-                    this.y = groundY;
-                    this.vy *= -0.5; // 损失能量
-                    this.vx *= 0.8;
-                }
-            }
-
-            draw(ctx) {
-                if (this.life <= 0) return;
-                
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                ctx.rotate(this.rotation);
-                ctx.globalAlpha = this.life;
-
-                if (this.type === 'chunk') {
-                    // 画多边形碎块
-                    ctx.fillStyle = this.color;
-                    ctx.beginPath();
-                    for (let i = 0; i < this.vertices; i++) {
-                        let a = (i / this.vertices) * Math.PI * 2;
-                        let px = Math.cos(a) * this.size;
-                        let py = Math.sin(a) * this.size;
-                        if (i === 0) ctx.moveTo(px, py);
-                        else ctx.lineTo(px, py);
-                    }
-                    ctx.closePath();
-                    ctx.fill();
-                } else {
-                    // 画流体果汁：根据速度拉伸
-                    let speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                    let angle = Math.atan2(this.vy, this.vx);
-                    ctx.rotate(angle - this.rotation); // 抵消原本的旋转，沿速度方向
-                    
-                    ctx.fillStyle = this.color;
-                    ctx.beginPath();
-                    // 拉伸效果
-                    ctx.ellipse(0, 0, this.size + speed * 0.5, this.size * 0.6, 0, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-
-                ctx.restore();
-            }
-        }
-
-        function triggerExplosion() {
-            STATE.isExploded = true;
-            STATE.explosionTime = Date.now();
-            STATE.particles = [];
-            
-            const cx = window.innerWidth / 2;
-            const cy = window.innerHeight / 2;
-            const fruitInfo = FRUITS[STATE.currentFruit];
-
-            // 生成碎块
-            for (let i = 0; i < CONFIG.PARTICLE_COUNT * 0.4; i++) {
-                STATE.particles.push(new Particle(cx + (Math.random()-0.5)*100, cy + (Math.random()-0.5)*100, 'chunk', fruitInfo));
-            }
-            // 生成果汁
-            for (let i = 0; i < CONFIG.PARTICLE_COUNT * 0.6; i++) {
-                STATE.particles.push(new Particle(cx + (Math.random()-0.5)*150, cy + (Math.random()-0.5)*150, 'juice', fruitInfo));
-            }
-
-            instructionText.innerText = "✨ 砰！释放压力！✨";
-            progressContainer.classList.add('opacity-0');
-
-            // 5秒后重置
-            setTimeout(resetToy, 5000);
-        }
-
-        function resetToy() {
-            STATE.isExploded = false;
-            STATE.particles = [];
-            STATE.isSqueezing = false;
-            STATE.smoothedFistFactor = 0;
-            instructionText.innerText = "✋ 将手放在镜头前，慢慢握紧拳头";
-        }
-
-
-        // ---------------- 4. 视觉与动画主循环 ----------------
-        function gameLoop() {
-            // 清理画布，填充米色背景
-            ctx.fillStyle = '#FDF8F5';
-            ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-
-            const cx = window.innerWidth / 2;
-            const cy = window.innerHeight / 2;
-
-            if (!STATE.isExploded) {
-                // 画捏捏乐
-                const fruitInfo = FRUITS[STATE.currentFruit];
-                const baseScale = window.innerWidth < 768 ? 1.2 : 1.8; // 手机上显示小一点，桌面大一点
-                fruitInfo.drawFunc(cx, cy, baseScale, STATE.smoothedFistFactor);
-
-                // 更新倒计时 UI
-                if (STATE.isSqueezing) {
-                    let elapsed = Date.now() - STATE.squeezeStartTime;
-                    let remain = Math.max(0, CONFIG.HOLD_TIME_MS - elapsed);
-                    let seconds = Math.ceil(remain / 1000);
-                    
-                    progressContainer.classList.remove('opacity-0');
-                    progressText.innerText = seconds;
-                    
-                    // 环形进度条计算
-                    const circumference = 80 * 2 * Math.PI;
-                    const offset = circumference - (elapsed / CONFIG.HOLD_TIME_MS) * circumference;
-                    progressRing.style.strokeDashoffset = Math.max(0, offset);
-
-                    if (elapsed > 2000) {
-                        instructionText.innerText = "🔥 保持住！马上就要爆了！";
-                        // 震动效果
-                        canvas.style.transform = `translate(${(Math.random()-0.5)*4}px, ${(Math.random()-0.5)*4}px)`;
-                    } else {
-                        instructionText.innerText = "用力捏紧！保持手势...";
-                        canvas.style.transform = "none";
-                    }
-
-                    if (elapsed >= CONFIG.HOLD_TIME_MS) {
-                        canvas.style.transform = "none";
-                        triggerExplosion();
-                    }
-                } else {
-                    progressContainer.classList.add('opacity-0');
-                    canvas.style.transform = "none";
-                }
-            } else {
-                // 画爆炸粒子
-                let activeParticles = false;
-                for (let p of STATE.particles) {
-                    p.update();
-                    p.draw(ctx);
-                    if (p.life > 0) activeParticles = true;
-                }
-            }
-
-            requestAnimationFrame(gameLoop);
-        }
-
-        // ---------------- 5. AI 手部追踪算法 (优化抗干扰) ----------------
+    // ==================== 音频管理 ====================
+    class AudioManager {
+      constructor() { 
+        this.ctx = null; 
+        this.master = null; 
+        this.lastSponge = 0; 
+      }
+      
+      ensure() {
+        if (this.ctx) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        this.ctx = new AudioContext();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.48;
+        this.master.connect(this.ctx.destination);
+      }
+      
+      sponge() {
+        this.ensure();
+        if (!this.ctx) return;
+        const now = performance.now();
+        if (now - this.lastSponge < 120) return;
+        this.lastSponge = now;
         
-        // 计算两点距离
-        function getDist(p1, p2) {
-            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        const o = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(280, this.ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(120, this.ctx.currentTime + 0.12);
+        g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.18, this.ctx.currentTime + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.14);
+        o.connect(g);
+        g.connect(this.master);
+        o.start();
+        o.stop(this.ctx.currentTime + 0.16);
+      }
+      
+      boom(category) {
+        this.ensure();
+        if (!this.ctx) return;
+        
+        const baseFreq = category === 'crawler' ? 140 : 180;
+        for (let i = 0; i < 5; i++) {
+          const o = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          o.type = i % 2 === 0 ? 'sawtooth' : 'square';
+          o.frequency.setValueAtTime(baseFreq + i * 40, this.ctx.currentTime);
+          o.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.4 + i * 0.05);
+          g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.22 - i * 0.03, this.ctx.currentTime + 0.05);
+          g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.45 + i * 0.05);
+          o.connect(g);
+          g.connect(this.master);
+          o.start();
+          o.stop(this.ctx.currentTime + 0.55);
         }
+      }
+    }
+    
+    const audio = new AudioManager();
 
-        function onHandResults(results) {
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                const landmarks = results.multiHandLandmarks[0]; // 只取第一只手
-                
-                // 绘制调试/预览骨架到小视频源 (可选，为了流畅度暂不直接在主画布画骨架)
-                
-                // --- 核心握拳计算逻辑 ---
-                // 参考点：0(手腕), 5,9,13,17(指关节), 8,12,16,20(指尖)
-                // 原理：计算指尖到手腕的距离总和，除以手掌大小(9到0的距离)作为归一化参考
-                
-                let distTips = 0;
-                distTips += getDist(landmarks[8], landmarks[0]);
-                distTips += getDist(landmarks[12], landmarks[0]);
-                distTips += getDist(landmarks[16], landmarks[0]);
-                distTips += getDist(landmarks[20], landmarks[0]);
+    // ==================== 工具函数 ====================
+    function setPage(name) {
+      Object.values(pages).forEach(p => p.classList.remove('active'));
+      if (pages[name]) pages[name].classList.add('active');
+      if (name === 'landing') spawnFloaters();
+    }
 
-                let palmSize = getDist(landmarks[9], landmarks[0]) * 4; // 乘以4用于平衡比例
-                
-                // 距离比率：张开时大约 1.8~2.5，握拳时大约 0.5~1.0
-                let ratio = distTips / palmSize;
-                
-                // 映射到 0(张开) ~ 1(握紧)
-                let rawFist = 1 - ((ratio - 0.7) / 1.3);
-                rawFist = Math.max(0, Math.min(1, rawFist)); // Clamp
+    async function startPlay() {
+      setPage('');
+      playUI.style.display = 'block';
+      bottomNav.classList.add('active');
+      renderToyGrid();
+      updateCategoryLabel();
+      
+      // 显示加载
+      loadingOverlay.classList.add('active');
+      state.isLoading = true;
+      
+      try {
+        await setupCameraHands();
+      } catch (err) {
+        console.error('启动失败:', err);
+      } finally {
+        loadingOverlay.classList.remove('active');
+        state.isLoading = false;
+      }
+    }
 
-                // EMA 滤波平滑 (防抖与抗干扰关键)
-                STATE.smoothedFistFactor = STATE.smoothedFistFactor * (1 - CONFIG.EMA_ALPHA) + rawFist * CONFIG.EMA_ALPHA;
-                STATE.fistFactor = STATE.smoothedFistFactor;
+    function initCategories() {
+      categoryGrid.innerHTML = '';
+      Object.entries(CATEGORIES).forEach(([key, cat]) => {
+        const btn = document.createElement('button');
+        btn.className = `cat-btn touch-feedback ${key === state.category ? 'active' : ''}`;
+        btn.innerHTML = `
+          <span class="icon">${cat.icon}</span>
+          <span class="label">${cat.name}</span>
+        `;
+        btn.onclick = () => {
+          document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          state.category = key;
+        };
+        categoryGrid.appendChild(btn);
+      });
+    }
 
-                // 状态机判断与容错机制
-                if (STATE.fistFactor > CONFIG.FIST_THRESHOLD) {
-                    if (!STATE.isSqueezing && !STATE.isExploded) {
-                        STATE.isSqueezing = true;
-                        STATE.squeezeStartTime = Date.now();
-                    }
-                    STATE.lastSqueezeTime = Date.now();
-                } else {
-                    // 如果识别到手松开，给予 Grace Period 容错时间，防止因为环境干扰造成的瞬间断开
-                    if (STATE.isSqueezing && (Date.now() - STATE.lastSqueezeTime > CONFIG.GRACE_PERIOD_MS)) {
-                        STATE.isSqueezing = false;
-                        instructionText.innerText = "✋ 将手放在镜头前，慢慢握紧拳头";
-                    }
-                }
-            } else {
-                // 没检测到手，缓缓恢复张开状态
-                STATE.smoothedFistFactor *= 0.8;
-                if (STATE.isSqueezing && (Date.now() - STATE.lastSqueezeTime > CONFIG.GRACE_PERIOD_MS)) {
-                    STATE.isSqueezing = false;
-                    instructionText.innerText = "✋ 未检测到手部，请对准镜头";
-                }
-            }
+    function renderToyGrid() {
+      toyGrid.innerHTML = '';
+      TOYS[state.category].forEach((toy, idx) => {
+        const btn = document.createElement('button');
+        btn.className = `toy-btn touch-feedback ${idx === state.toyIndex ? 'active' : ''}`;
+        btn.innerHTML = `
+          <span class="emoji">${toy.emoji}</span>
+          <span class="name">${toy.name}</span>
+        `;
+        btn.onclick = () => {
+          state.toyIndex = idx;
+          state.exploded = false;
+          state.particles = [];
+          state.crawlers = [];
+          document.querySelectorAll('#toy-grid .toy-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        };
+        toyGrid.appendChild(btn);
+      });
+    }
+
+    function updateCategoryLabel() {
+      currentCategoryLabel.textContent = CATEGORIES[state.category].name;
+    }
+
+    function spawnFloaters() {
+      floatingLayer.innerHTML = '';
+      state.floaters = [];
+      const pool = Object.values(TOYS).flat().map(x => x.emoji);
+      const count = window.innerWidth < 768 ? 10 : 14;
+      
+      for (let i = 0; i < count; i++) {
+        const e = document.createElement('div');
+        e.className = 'float-toy';
+        e.textContent = pool[Math.floor(Math.random() * pool.length)];
+        const x = Math.random() * window.innerWidth;
+        const y = Math.random() * window.innerHeight;
+        const vx = (Math.random() - 0.5) * 0.5;
+        const vy = (Math.random() - 0.5) * 0.5;
+        const rot = Math.random() * 360;
+        const s = 0.7 + Math.random() * 0.5;
+        state.floaters.push({el:e,x,y,vx,vy,rot,s});
+        floatingLayer.appendChild(e);
+      }
+    }
+
+    function updateFloaters() {
+      const safe = { 
+        x: window.innerWidth / 2 - Math.min(window.innerWidth * 0.4, 300), 
+        y: window.innerHeight / 2 - Math.min(window.innerHeight * 0.3, 200), 
+        w: Math.min(window.innerWidth * 0.8, 600), 
+        h: Math.min(window.innerHeight * 0.6, 400) 
+      };
+      
+      for (const f of state.floaters) {
+        f.x += f.vx; 
+        f.y += f.vy; 
+        f.rot += 0.2;
+        if (f.x < 0 || f.x > window.innerWidth - 30) f.vx *= -1;
+        if (f.y < 0 || f.y > window.innerHeight - 30) f.vy *= -1;
+        if (f.x > safe.x && f.x < safe.x + safe.w && f.y > safe.y && f.y < safe.y + safe.h) {
+          f.vx += (f.x < window.innerWidth / 2 ? -0.2 : 0.2);
+          f.vy += (f.y < window.innerHeight / 2 ? -0.2 : 0.2);
         }
+        f.vx = Math.max(-0.9, Math.min(0.9, f.vx));
+        f.vy = Math.max(-0.9, Math.min(0.9, f.vy));
+        f.el.style.transform = `translate(${f.x}px, ${f.y}px) rotate(${f.rot}deg) scale(${f.s})`;
+      }
+    }
 
-        // ---------------- 6. 系统初始化与交互绑定 ----------------
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
-        // 绑定按钮事件
-        fruitBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                fruitBtns.forEach(b => b.classList.remove('active'));
-                const target = e.currentTarget;
-                target.classList.add('active');
-                STATE.currentFruit = target.dataset.fruit;
-            });
+    function drawSoftHighlight(x, y, rx, ry) {
+      ctx.fillStyle = 'rgba(255,255,255,.55)';
+      ctx.beginPath();
+      ctx.ellipse(x, y, rx, ry, -0.35, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // ==================== 位置计算函数 ====================
+    // 计算捏捏位置，与"萌系童话捏捏乐"文字保持一致的布局关系
+    function getToyPosition() {
+      const screenW = window.innerWidth;
+      const screenH = window.innerHeight;
+      
+      // 水平居中（与标题一致）
+      const cx = screenW / 2;
+      
+      // 垂直位置计算：模拟.card容器的布局
+      // .card使用flex居中，标题在卡片内偏上位置
+      const cardPadding = screenW < 640 ? 24 : 32; // p-6(24px) 或 p-8(32px)
+      const emojiHeight = Math.min(screenW * 0.12, 64); // clamp(48px, 12vw, 64px)
+      const emojiMargin = 16;
+      const titleOffset = 30; // 标题在卡片内的偏移
+      
+      // 计算垂直位置：屏幕中心 - 卡片半高 + 顶部间距 + emoji高度 + 标题偏移
+      const cy = (screenH / 2) - 80 + cardPadding + emojiHeight + emojiMargin + titleOffset;
+      
+      return { cx, cy };
+    }
+
+    // ==================== 绘制模型 ====================
+    function drawModel(toy, cx, cy, baseScale = 1.8) {
+      // 根据传入的baseScale计算缩放，与index.txt保持一致
+      const s = (1 + state.squeeze * 0.22) * baseScale;
+      const sy = (1 - state.squeeze * 0.18) * baseScale;
+      
+      ctx.save();
+      ctx.translate(cx, cy);
+      if (state.squeeze > 0.75) ctx.translate((Math.random()-.5)*2, (Math.random()-.5)*2);
+      ctx.scale(s, sy);
+      ctx.shadowColor = 'rgba(108,88,76,.22)';
+      ctx.shadowBlur = 24;
+      ctx.shadowOffsetY = 12;
+
+      const grad = ctx.createRadialGradient(-20, -30, 10, 0, 0, 200);
+      grad.addColorStop(0, toy.c2);
+      grad.addColorStop(1, toy.c1);
+      ctx.fillStyle = grad;
+
+      switch (toy.model) {
+        case 'peach':
+          ctx.beginPath();
+          ctx.moveTo(0, -84);
+          ctx.bezierCurveTo(85,-110,130,20,0,120);
+          ctx.bezierCurveTo(-130,20,-85,-110,0,-84);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(180,90,95,.35)'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.moveTo(0,-75); ctx.quadraticCurveTo(-18,20,0,112); ctx.stroke();
+          break;
+        case 'orange':
+        case 'kiwi':
+        case 'lemon':
+          ctx.beginPath(); ctx.ellipse(0, 0, 112, 96, 0, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'strawberry':
+          ctx.beginPath();
+          ctx.moveTo(0,-95);
+          ctx.bezierCurveTo(88,-92,105,-10,50,95);
+          ctx.quadraticCurveTo(0,127,-50,95);
+          ctx.bezierCurveTo(-105,-10,-88,-92,0,-95);
+          ctx.fill();
+          break;
+        case 'melon':
+          ctx.beginPath(); ctx.arc(0, 8, 115, Math.PI, 0); ctx.closePath(); ctx.fill();
+          break;
+        case 'pineapple':
+          ctx.beginPath(); ctx.ellipse(0, 10, 88, 120, 0, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'grape':
+          for (let i=0;i<8;i++) { 
+            const a=i/8*Math.PI*2; 
+            ctx.beginPath(); 
+            ctx.arc(Math.cos(a)*42, Math.sin(a)*36+8, 34, 0, Math.PI*2); 
+            ctx.fill(); 
+          }
+          ctx.beginPath(); ctx.arc(0,-24,34,0,Math.PI*2); ctx.fill();
+          break;
+        case 'roach':
+        case 'beetle':
+          ctx.beginPath(); ctx.ellipse(0,10,78,110,0,0,Math.PI*2); ctx.fill();
+          break;
+        case 'ant':
+          ctx.beginPath(); ctx.arc(-38, 20, 26, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(0, 15, 30, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(42, 5, 36, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'spider':
+          ctx.beginPath(); ctx.arc(0, 22, 56, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'scorpion':
+          ctx.beginPath(); ctx.ellipse(0, 20, 74, 86, 0, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'worm':
+          ctx.beginPath();
+          ctx.moveTo(-95,0);
+          for(let x=-95;x<=95;x+=12){ ctx.lineTo(x, Math.sin(x/16)*22); }
+          ctx.lineTo(95,35); ctx.lineTo(-95,35); ctx.closePath();
+          ctx.fill();
+          break;
+        case 'fly':
+          ctx.beginPath(); ctx.ellipse(0, 10, 48, 78, 0, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'bunny':
+          ctx.beginPath(); ctx.ellipse(-34,-108,20,54,0,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(34,-108,20,54,0,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(0, 10, 95, 0, Math.PI*2); ctx.fill();
+          break;
+        case 'cat':
+        case 'fox':
+        case 'bear':
+        case 'panda':
+        case 'hamster':
+        case 'dog':
+        case 'unicorn':
+          ctx.beginPath(); ctx.arc(0, 10, 98, 0, Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(-72,-48); ctx.lineTo(-26,-102); ctx.lineTo(-10,-26); ctx.closePath(); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(72,-48); ctx.lineTo(26,-102); ctx.lineTo(10,-26); ctx.closePath(); ctx.fill();
+          break;
+        case 'cupcake':
+          ctx.beginPath(); ctx.ellipse(0,-45,92,56,0,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(-75,0); ctx.lineTo(75,0); ctx.lineTo(55,108); ctx.lineTo(-55,108); ctx.closePath(); ctx.fill();
+          break;
+        case 'cake':
+        case 'choco':
+          ctx.beginPath(); ctx.roundRect(-95,-44,190,120,20); ctx.fill();
+          break;
+        case 'pudding':
+          ctx.beginPath(); ctx.moveTo(-75,-40); ctx.quadraticCurveTo(0,-86,75,-40); ctx.lineTo(52,100); ctx.lineTo(-52,100); ctx.closePath(); ctx.fill();
+          break;
+        case 'donut':
+          ctx.beginPath(); ctx.arc(0, 10, 102, 0, Math.PI*2); ctx.fill();
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.beginPath(); ctx.arc(0,10,35,0,Math.PI*2); ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+          break;
+        case 'cookie':
+          ctx.beginPath(); ctx.arc(0,10,98,0,Math.PI*2); ctx.fill();
+          break;
+        case 'dango':
+          ctx.beginPath(); ctx.arc(-52,12,44,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(0,12,44,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.arc(52,12,44,0,Math.PI*2); ctx.fill();
+          break;
+        case 'icecream':
+          ctx.beginPath(); ctx.arc(0,-32,70,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(-45,8); ctx.lineTo(45,8); ctx.lineTo(0,120); ctx.closePath(); ctx.fill();
+          break;
+      }
+
+      ctx.shadowColor = 'transparent';
+      drawSoftHighlight(-36,-34,28,14);
+      ctx.font = '78px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(toy.emoji, 0, 8);
+      ctx.restore();
+
+      // 绘制名称
+      ctx.fillStyle = '#7a6758';
+      const nameFontSize = window.innerWidth < 768 ? 24 : 31;
+      ctx.font = `${nameFontSize}px ZCOOL KuaiLe`;
+      ctx.textAlign = 'center';
+      const nameOffset = window.innerWidth < 768 ? 160 : 205;
+      ctx.fillText(toy.name, cx, cy + nameOffset);
+    }
+
+    // ==================== 爆炸效果 ====================
+    function spawnExplosion() {
+      state.exploded = true;
+      state.particles = [];
+      // 使用统一的位置计算函数，与"萌系童话捏捏乐"文字及捏捏保持一致的布局关系
+      const { cx, cy } = getToyPosition();
+      
+      const n = state.category === 'crawler' ? 92 : 128;
+      
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 4 + Math.random() * 11;
+        state.particles.push({ 
+          x: cx, 
+          y: cy, 
+          vx: Math.cos(a)*sp, 
+          vy: Math.sin(a)*sp - 1, 
+          life: 1, 
+          size: 5 + Math.random()*8, 
+          hue: Math.random()*16 
         });
+      }
+      
+      if (state.category === 'crawler') {
+        state.crawlers = [];
+        const toy = TOYS.crawler[state.toyIndex].emoji;
+        for (let i = 0; i < 30; i++) {
+          state.crawlers.push({ 
+            emoji: toy, 
+            x: cx, 
+            y: cy, 
+            a: Math.random() * Math.PI * 2, 
+            speed: 0.9 + Math.random()*1.5, 
+            phase: Math.random()*Math.PI*2, 
+            size: 20 + Math.random()*14 
+          });
+        }
+      }
+      
+      audio.boom(state.category);
+      statusText.textContent = state.category === 'crawler' ? '呀！同类爬虫正在四处乱爬～' : '砰！压力被释放啦～';
+      
+      setTimeout(() => {
+        state.exploded = false;
+        state.particles = [];
+        state.crawlers = [];
+        state.squeeze = 0;
+        statusText.textContent = '继续握拳还能再捏一次';
+      }, 2600);
+    }
 
-        startBtn.addEventListener('click', async () => {
-            startBtn.classList.add('hidden');
-            loadingIndicator.classList.remove('hidden');
-            loadingIndicator.classList.add('flex');
+    function drawParticles() {
+      ctx.save();
+      for (const p of state.particles) {
+        p.x += p.vx; 
+        p.y += p.vy; 
+        p.vy += 0.18;
+        p.life -= 0.02;
+        if (p.life <= 0) continue;
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = CATEGORIES[state.category].popWave;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, p.size, p.size*0.7, p.hue, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.restore();
+      state.particles = state.particles.filter(p => p.life > 0);
+    }
 
-            try {
-                // 初始化 MediaPipe Hands
-                const hands = new Hands({
-                    locateFile: (file) => {
-                        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
-                    }
-                });
+    function drawCrawlers() {
+      for (const c of state.crawlers) {
+        c.phase += 0.15;
+        c.a += (Math.random() - 0.5) * 0.25;
+        c.x += Math.cos(c.a) * c.speed;
+        c.y += Math.sin(c.a) * c.speed + Math.sin(c.phase) * 0.45;
+        if (c.x < 15 || c.x > window.innerWidth - 15) c.a = Math.PI - c.a;
+        if (c.y < 40 || c.y > window.innerHeight - 15) c.a = -c.a;
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate(c.a);
+        ctx.font = `${c.size}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+        ctx.fillText(c.emoji, 0, 0);
+        ctx.restore();
+      }
+    }
 
-                hands.setOptions({
-                    maxNumHands: 1,
-                    modelComplexity: 1,
-                    minDetectionConfidence: 0.6,
-                    minTrackingConfidence: 0.6
-                });
+    function getDist(p1, p2) { 
+      return Math.hypot(p1.x - p2.x, p1.y - p2.y); 
+    }
 
-                hands.onResults(onHandResults);
+    // ==================== 手部识别 ====================
+    function onHandResults(results) {
+      if (!playUI.style.display || playUI.style.display === 'none') return;
+      
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const lm = results.multiHandLandmarks[0];
+        let distTips = 0;
+        distTips += getDist(lm[8], lm[0]);
+        distTips += getDist(lm[12], lm[0]);
+        distTips += getDist(lm[16], lm[0]);
+        distTips += getDist(lm[20], lm[0]);
+        const palmSize = getDist(lm[9], lm[0]) * 4;
+        let ratio = distTips / Math.max(0.0001, palmSize);
+        let rawFist = 1 - ((ratio - 0.7) / 1.3);
+        rawFist = Math.max(0, Math.min(1, rawFist));
 
-                // 启动摄像头
-                const camera = new Camera(videoElement, {
-                    onFrame: async () => {
-                        await hands.send({image: videoElement});
-                        // 将摄像头画面镜像绘制到预览窗口 (可选视觉反馈)
-                        // 若需节约性能，此部分预览可省略
-                    },
-                    width: 640,
-                    height: 480
-                });
+        state.smoothedFistFactor = state.smoothedFistFactor * (1 - CONFIG.EMA_ALPHA) + rawFist * CONFIG.EMA_ALPHA;
+        state.fistFactor = state.smoothedFistFactor;
+        state.squeeze = state.fistFactor;
 
-                await camera.start();
-                
-                // 将视频流连接到预览器
-                cameraPreview.srcObject = videoElement.srcObject;
-                cameraPreview.classList.remove('hidden');
+        if (state.fistFactor > CONFIG.FIST_THRESHOLD && !state.exploded) {
+          if (!state.isSqueezing) {
+            state.isSqueezing = true;
+            state.squeezeStartTime = Date.now();
+          }
+          state.lastSqueezeTime = Date.now();
+          audio.sponge();
+          
+          const elapsed = Date.now() - state.squeezeStartTime;
+          const remain = Math.max(0, CONFIG.HOLD_TIME_MS - elapsed);
+          const seconds = Math.ceil(remain / 1000);
+          
+          // 更新进度环
+          progressContainer.classList.add('visible');
+          progressText.textContent = seconds;
+          const circumference = 80 * 2 * Math.PI;
+          const offset = circumference - (elapsed / CONFIG.HOLD_TIME_MS) * circumference;
+          progressRing.style.strokeDashoffset = Math.max(0, offset);
+          
+          if (remain > 0) {
+            statusText.textContent = `用力捏紧！${seconds}秒`;
+          } else {
+            statusText.textContent = '要爆啦！';
+          }
+          
+          if (elapsed >= CONFIG.HOLD_TIME_MS) {
+            progressContainer.classList.remove('visible');
+            spawnExplosion();
+          }
+        } else if (state.isSqueezing && (Date.now() - state.lastSqueezeTime > CONFIG.GRACE_PERIOD_MS)) {
+          state.isSqueezing = false;
+          progressContainer.classList.remove('visible');
+          if (!state.exploded) statusText.textContent = '请继续握拳 3 秒';
+        }
+      } else {
+        state.smoothedFistFactor *= 0.86;
+        state.squeeze = state.smoothedFistFactor;
+        progressContainer.classList.remove('visible');
+        
+        if (state.isSqueezing && (Date.now() - state.lastSqueezeTime > CONFIG.GRACE_PERIOD_MS)) {
+          state.isSqueezing = false;
+          if (!state.exploded) statusText.textContent = '未检测到手，请对准镜头';
+        }
+      }
+    }
 
-                // 启动成功，隐藏启动屏，显示 UI，开始渲染循环
-                startupScreen.style.opacity = '0';
-                setTimeout(() => {
-                    startupScreen.classList.add('hidden');
-                    uiLayer.classList.remove('hidden');
-                    requestAnimationFrame(gameLoop);
-                }, 500);
-
-            } catch (err) {
-                console.error(err);
-                loadingIndicator.innerHTML = `<p class="text-red-500 font-bold">无法访问摄像头或加载AI模型失败。<br>请确保授予摄像头权限并处于网络良好环境。</p>`;
+    async function setupCameraHands() {
+      if (state.cameraStarted) return;
+      
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('浏览器不支持摄像头访问');
+        }
+        
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: 'user'
+          }, 
+          audio: false 
+        });
+        
+        videoElement.srcObject = stream;
+        
+        await new Promise((resolve, reject) => {
+          videoElement.onloadedmetadata = () => {
+            videoElement.play().then(resolve).catch(reject);
+          };
+          videoElement.onerror = reject;
+          setTimeout(() => reject(new Error('视频加载超时')), 10000);
+        });
+        
+        const hands = new Hands({ 
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` 
+        });
+        
+        hands.setOptions({ 
+          maxNumHands: 1, 
+          modelComplexity: 1, 
+          minDetectionConfidence: 0.6, 
+          minTrackingConfidence: 0.6 
+        });
+        
+        hands.onResults(onHandResults);
+        
+        const processVideo = async () => {
+          if (!state.cameraStarted) return;
+          
+          try {
+            if (videoElement.readyState >= 2) {
+              await hands.send({ image: videoElement });
             }
-        });
+          } catch (err) {
+            console.error('手部识别处理错误:', err);
+          }
+          
+          requestAnimationFrame(processVideo);
+        };
+        
+        state.cameraStarted = true;
+        processVideo();
+        
+        cameraPreview.srcObject = stream;
+        cameraPreview.style.display = 'block';
+        
+      } catch (err) {
+        console.error('摄像头启动失败:', err);
+        statusText.textContent = '摄像头启动失败';
+        alert('无法访问摄像头，请确保已授予权限');
+      }
+    }
 
-    </script>
+    // ==================== 游戏循环 ====================
+    function loop() {
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      ctx.fillStyle = '#f8f1e7';
+      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+      
+      if (pages.landing.classList.contains('active')) updateFloaters();
+
+      if (!pages.landing.classList.contains('active') && !pages.category.classList.contains('active')) {
+        // 使用统一的位置计算函数，与"萌系童话捏捏乐"文字保持一致的布局关系
+        const { cx, cy } = getToyPosition();
+        
+        if (!state.exploded) {
+          const toy = TOYS[state.category][state.toyIndex];
+          const baseScale = window.innerWidth < 768 ? 1.2 : 1.8; // 手机上显示小一点，桌面大一点
+          drawModel(toy, cx, cy, baseScale);
+        } else {
+          drawParticles();
+          if (state.category === 'crawler') drawCrawlers();
+        }
+      }
+      
+      requestAnimationFrame(loop);
+    }
+
+    // ==================== 事件绑定 ====================
+    document.getElementById('go-category').onclick = () => setPage('category');
+    
+    document.getElementById('start-play').onclick = async () => {
+      state.toyIndex = 0;
+      await startPlay();
+    };
+    
+    document.getElementById('back-category').onclick = () => {
+      setPage('category');
+      playUI.style.display = 'none';
+      bottomNav.classList.remove('active');
+      state.cameraStarted = false;
+      if (videoElement.srcObject) {
+        videoElement.srcObject.getTracks().forEach(track => track.stop());
+      }
+    };
+
+    // 触摸反馈
+    document.querySelectorAll('.touch-feedback').forEach(el => {
+      el.addEventListener('touchstart', () => {
+        el.style.transform = 'scale(0.96)';
+      }, { passive: true });
+      
+      el.addEventListener('touchend', () => {
+        setTimeout(() => {
+          el.style.transform = '';
+        }, CONFIG.TOUCH_FEEDBACK_DURATION);
+      }, { passive: true });
+    });
+
+    // 窗口调整
+    window.addEventListener('resize', () => { 
+      resize(); 
+      spawnFloaters(); 
+    });
+
+    // 防止双击缩放
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, { passive: false });
+
+    // 初始化
+    resize();
+    spawnFloaters();
+    initCategories();
+    requestAnimationFrame(loop);
+  </script>
 </body>
 </html>
