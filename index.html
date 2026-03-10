@@ -1,1248 +1,905 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#f8f1e7" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <title>萌系童话捏捏乐 - 移动版</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
-    
-    :root {
-      --beige: #f8f1e7;
-      --ink: #6c584c;
-      --pink: #ff9eb5;
-      --touch-min: 44px;
-    }
-    
-    * { 
-      box-sizing: border-box; 
-      -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation;
-    }
-    
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: radial-gradient(circle at 20% 20%, #fff8f0 0%, var(--beige) 45%, #f1e5d7 100%);
-      font-family: 'ZCOOL KuaiLe', cursive, system-ui, sans-serif;
-      color: var(--ink);
-      user-select: none;
-      -webkit-user-select: none;
-    }
-    
-    /* 响应式字体大小 */
-    html {
-      font-size: clamp(14px, 3.5vw, 18px);
-    }
-    
-    @media (min-width: 768px) {
-      html { font-size: 16px; }
-    }
-    
-    /* 屏幕容器 */
-    .screen {
-      position: absolute;
-      inset: 0;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 20;
-      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-    }
-    .screen.active { display: flex; }
-    
-    /* 卡片样式 - 移动优化 */
-    .card {
-      background: rgba(255,255,255,0.85);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 2px solid rgba(255,255,255,.9);
-      border-radius: clamp(16px, 5vw, 28px);
-      box-shadow: 0 12px 30px rgba(108,88,76,.12), inset 0 2px 6px rgba(255,255,255,.95);
-    }
-    
-    /* 触控友好的按钮 */
-    .btn-touch {
-      min-height: var(--touch-min);
-      min-width: var(--touch-min);
-      padding: 12px 20px;
-      border-radius: 50px;
-      font-size: clamp(16px, 4vw, 20px);
-      font-weight: bold;
-      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      border: none;
-      outline: none;
-      -webkit-appearance: none;
-    }
-    
-    .btn-touch:active {
-      transform: scale(0.96);
-      opacity: 0.9;
-    }
-    
-    .btn-primary {
-      background: linear-gradient(135deg, #ff9eb5 0%, #ff7eb3 100%);
-      color: white;
-      box-shadow: 0 4px 15px rgba(255, 158, 181, 0.4);
-    }
-    
-    .btn-secondary {
-      background: linear-gradient(135deg, #ffd8a8 0%, #ffb088 100%);
-      color: #6c584c;
-      box-shadow: 0 4px 15px rgba(255, 176, 136, 0.3);
-    }
-    
-    /* 玩具按钮 - 网格布局 */
-    .toy-btn {
-      min-height: var(--touch-min);
-      min-width: var(--touch-min);
-      border-radius: clamp(12px, 3vw, 18px);
-      border: 2px solid #f4d7bd;
-      background: linear-gradient(165deg, #fff, #fef5e9);
-      transition: all 0.15s ease;
-      padding: clamp(8px, 2vw, 12px);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-      cursor: pointer;
-      -webkit-appearance: none;
-    }
-    
-    .toy-btn:active {
-      transform: scale(0.95);
-      background: #fff8f3;
-    }
-    
-    .toy-btn.active {
-      border-color: var(--pink);
-      background: #fff2f6;
-      box-shadow: 0 6px 16px rgba(255, 158, 181, 0.35);
-    }
-    
-    .toy-btn .emoji {
-      font-size: clamp(24px, 6vw, 32px);
-      line-height: 1;
-    }
-    
-    .toy-btn .name {
-      font-size: clamp(11px, 2.8vw, 13px);
-      font-weight: 600;
-      color: #6c584c;
-      text-align: center;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100%;
-    }
-    
-    /* 类别按钮 */
-    .cat-btn {
-      min-height: var(--touch-min);
-      border-radius: 16px;
-      padding: 16px 12px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      background: linear-gradient(165deg, #fff, #fef5e9);
-      border: 2px solid #f4d7bd;
-      transition: all 0.15s ease;
-      cursor: pointer;
-    }
-    
-    .cat-btn:active {
-      transform: scale(0.97);
-    }
-    
-    .cat-btn.active {
-      border-color: #ff8fab;
-      background: #fff2f6;
-    }
-    
-    .cat-btn .icon {
-      font-size: clamp(32px, 8vw, 40px);
-    }
-    
-    .cat-btn .label {
-      font-size: clamp(13px, 3.2vw, 15px);
-      font-weight: 600;
-      color: #6c584c;
-    }
-    
-    /* 浮动层 */
-    #floating-layer {
-      position: absolute;
-      inset: 0;
-      z-index: 5;
-      pointer-events: none;
-    }
-    
-    .float-toy {
-      position: absolute;
-      font-size: clamp(32px, 8vw, 44px);
-      filter: drop-shadow(0 6px 10px rgba(108,88,76,.2));
-      opacity: .75;
-      will-change: transform;
-    }
-    
-    /* 游戏画布 */
-    #play-canvas {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-    }
-    
-    /* 游戏UI层 */
-    #play-ui {
-      position: absolute;
-      inset: 0;
-      z-index: 15;
-      pointer-events: none;
-      display: none;
-    }
-    
-    #play-ui .interactive { pointer-events: auto; }
-    
-    /* 视频元素 */
-    .input_video { display: none; }
-    
-    /* 摄像头预览 - 移动端优化 */
-    #camera-preview {
-      position: absolute;
-      right: clamp(8px, 2vw, 18px);
-      bottom: clamp(8px, 2vw, 18px);
-      width: clamp(120px, 30vw, 190px);
-      height: clamp(90px, 22vw, 140px);
-      border-radius: 12px;
-      border: 3px solid rgba(255,255,255,.95);
-      box-shadow: 0 6px 14px rgba(0,0,0,.1);
-      object-fit: cover;
-      transform: scaleX(-1);
-      z-index: 30;
-      display: none;
-      background: #e9dfd0;
-    }
-    
-    /* 底部导航栏 - 移动端 */
-    .bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border-top: 1px solid rgba(244, 215, 189, 0.5);
-      padding: env(safe-area-inset-bottom) 16px 16px;
-      z-index: 100;
-      display: none;
-    }
-    
-    .bottom-nav.active { display: block; }
-    
-    .nav-content {
-      max-width: 600px;
-      margin: 0 auto;
-    }
-    
-    /* 状态提示 - 移动端优化 */
-    .status-pill {
-      display: inline-block;
-      background: rgba(255,255,255,0.9);
-      backdrop-filter: blur(8px);
-      padding: 10px 20px;
-      border-radius: 50px;
-      font-size: clamp(14px, 3.5vw, 16px);
-      font-weight: 600;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      border: 1px solid rgba(255,255,255,0.8);
-    }
-    
-    /* 进度环 */
-    .progress-ring-container {
-      position: absolute;
-      top: 50%; /* 屏幕正中间 */
-      left: 50%;
-      transform: translate(-50%, -50%);
-      opacity: 0;
-      transition: opacity 0.3s;
-      z-index: 30;
-    }
-    
-    .progress-ring-container.visible {
-      opacity: 1;
-    }
-    
-    .progress-ring {
-      width: clamp(140px, 35vw, 200px);
-      height: clamp(140px, 35vw, 200px);
-    }
-    
-    .progress-ring-circle {
-      transition: stroke-dashoffset 0.1s linear;
-      transform: rotate(-90deg);
-      transform-origin: 50% 50%;
-    }
-    
-    /* 响应式网格 */
-    .grid-categories {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: clamp(12px, 3vw, 16px);
-    }
-    
-    @media (min-width: 640px) {
-      .grid-categories {
-        grid-template-columns: repeat(4, 1fr);
-      }
-    }
-    
-    .grid-toys {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: clamp(8px, 2vw, 12px);
-    }
-    
-    @media (min-width: 480px) {
-      .grid-toys {
-        grid-template-columns: repeat(4, 1fr);
-      }
-    }
-    
-    @media (min-width: 640px) {
-      .grid-toys {
-        grid-template-columns: repeat(8, 1fr);
-      }
-    }
-    
-    /* 加载动画 */
-    .loader {
-      width: 48px;
-      height: 48px;
-      border: 4px solid #f3e8d2;
-      border-top: 4px solid #ff9eb5;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    
-    /* 触摸反馈效果 */
-    .touch-feedback {
-      position: relative;
-      overflow: hidden;
-    }
-    
-    .touch-feedback::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(circle at center, rgba(255,255,255,0.4) 0%, transparent 70%);
-      opacity: 0;
-      transition: opacity 0.2s;
-    }
-    
-    .touch-feedback:active::after {
-      opacity: 1;
-    }
-    
-    /* 安全区域适配 */
-    .safe-top { padding-top: env(safe-area-inset-top); }
-    .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-    
-    /* 横屏提示 */
-    .orientation-tip {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(108, 88, 76, 0.95);
-      z-index: 9999;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      color: white;
-      text-align: center;
-      padding: 20px;
-    }
-    
-    @media (orientation: landscape) and (max-height: 500px) {
-      .orientation-tip {
-        display: flex;
-      }
-    }
-    
-    /* 隐藏滚动条 */
-    ::-webkit-scrollbar {
-      display: none;
-    }
-    
-    /* 防止文本缩放 */
-    body {
-      -webkit-text-size-adjust: 100%;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>萌系童话捏捏乐 | 治愈解压</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            background-color: #FDF8F5;
+            font-family: 'ZCOOL KuaiLe', cursive, sans-serif;
+            overflow: hidden;
+            user-select: none;
+            color: #5A4C40;
+        }
+
+        .q-shadow {
+            box-shadow: 0 10px 25px rgba(200, 180, 160, 0.3), inset 0 2px 5px rgba(255, 255, 255, 0.8);
+        }
+
+        .screen {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+        }
+        .screen.active { display: flex; }
+
+        .card {
+            background: rgba(255,255,255,0.92);
+            backdrop-filter: blur(12px);
+            border: 2px solid rgba(255,255,255,.9);
+            border-radius: 24px;
+            box-shadow: 0 12px 30px rgba(108,88,76,.12), inset 0 2px 6px rgba(255,255,255,.95);
+        }
+
+        .btn-touch {
+            min-height: 48px;
+            min-width: 48px;
+            transition: transform 0.1s;
+        }
+        .btn-touch:active { transform: scale(0.96); }
+
+        .btn-select {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-select:hover { transform: translateY(-3px) scale(1.02); }
+        .btn-select.active {
+            border: 3px solid #FF9A9E;
+            background-color: #FFF0F0;
+            transform: scale(1.05);
+        }
+
+        .float-toy {
+            position: absolute;
+            font-size: 32px;
+            pointer-events: none;
+            opacity: 0.7;
+            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.1));
+            transition: transform 0.3s ease;
+        }
+
+        #floating-layer {
+            position: absolute;
+            inset: 0;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        #camera-preview {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: clamp(120px, 20vw, 180px);
+            height: clamp(90px, 15vw, 135px);
+            border-radius: 15px;
+            border: 4px solid white;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            transform: scaleX(-1);
+            z-index: 10;
+            background: #e0d8d0;
+            object-fit: cover;
+        }
+
+        .progress-ring-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 30;
+        }
+        .progress-ring-container.visible { opacity: 1; }
+
+        .progress-ring {
+            width: clamp(140px, 35vw, 200px);
+            height: clamp(140px, 35vw, 200px);
+        }
+
+        .progress-ring-circle {
+            transition: stroke-dashoffset 0.1s linear;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #FF9A9E;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .category-card {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .category-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
+        .category-card.selected {
+            border: 3px solid #FF9A9E;
+            background: #FFF5F5;
+        }
+
+        .toy-item {
+            width: 70px;
+            height: 70px;
+            background: white;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .toy-item:hover { transform: scale(1.08); }
+        .toy-item.selected {
+            border: 2px solid #FF9A9E;
+            background: #FFF0F0;
+        }
+
+        .crawler-animation {
+            position: absolute;
+            font-size: 24px;
+            pointer-events: none;
+            z-index: 25;
+        }
+    </style>
 </head>
 <body>
-  <!-- 横屏提示 -->
-  <div class="orientation-tip">
-    <div style="font-size: 64px; margin-bottom: 20px;">📱</div>
-    <h2 style="font-size: 24px; margin-bottom: 12px;">请竖屏使用</h2>
-    <p style="font-size: 16px; opacity: 0.8;">为了获得最佳体验，请将手机竖直放置</p>
-  </div>
+    <canvas id="main-canvas"></canvas>
+    <div id="floating-layer"></div>
+    
+    <video class="input_video" playsinline muted style="display:none;"></video>
+    <video id="camera-preview" autoplay playsinline muted style="display:none;"></video>
 
-  <!-- 画布层 -->
-  <canvas id="play-canvas"></canvas>
-  <div id="floating-layer"></div>
-
-  <!-- 视频元素 -->
-  <video class="input_video" playsinline muted></video>
-  <video id="camera-preview" autoplay playsinline muted></video>
-
-  <!-- 启动页 -->
-  <section id="page-landing" class="screen active">
-    <div class="card w-[92%] max-w-[420px] p-6 sm:p-8 text-center">
-      <div style="font-size: clamp(48px, 12vw, 64px); margin-bottom: 16px;">🎯</div>
-      <h1 class="text-3xl sm:text-4xl md:text-5xl text-pink-400 mb-3" style="text-shadow:2px 2px 0 #fff;">萌系童话捏捏乐</h1>
-      <p class="text-base sm:text-lg mb-6 opacity-80">随机漂浮的捏捏正在陪你放松 ✨</p>
-      <button id="go-category" class="btn-touch btn-primary w-full touch-feedback">
-        <span>进入类别选择</span>
-        <span style="font-size: 20px;">→</span>
-      </button>
-    </div>
-  </section>
-
-  <!-- 类别选择页 -->
-  <section id="page-category" class="screen">
-    <div class="card w-[94%] max-w-[600px] p-4 sm:p-6 md:p-8 flex flex-col max-h-[90vh]">
-      <h2 class="text-2xl sm:text-3xl text-center mb-4 safe-top">选择捏捏类别</h2>
-      <div id="category-grid" class="grid-categories mb-4 overflow-y-auto" style="flex: 1;"></div>
-      <div class="text-center safe-bottom">
-        <button id="start-play" class="btn-touch btn-secondary w-full sm:w-auto touch-feedback">
-          <span style="font-size: 20px;">📷</span>
-          <span>开启摄像头捏捏</span>
-        </button>
-      </div>
-    </div>
-  </section>
-
-  <!-- 游戏UI层 -->
-  <section id="play-ui">
-    <!-- 顶部状态栏 -->
-    <div class="w-full pt-safe px-4 pt-3">
-      <div class="flex justify-center">
-        <div class="status-pill">
-          <span id="instruction-text">✋ 将手放在镜头前，慢慢握紧拳头</span>
+    <!-- 第一页：启动页 -->
+    <section id="page-start" class="screen active">
+        <div class="card w-[90%] max-w-[400px] p-8 text-center relative z-10">
+            <div style="font-size: 56px; margin-bottom: 12px;">🧸</div>
+            <h1 class="text-4xl font-bold mb-3 text-pink-400" style="text-shadow: 2px 2px 0 #fff, 3px 3px 0 rgba(255,154,158,0.2);">萌系童话捏捏乐</h1>
+            <p class="text-lg mb-6 text-gray-500">释放压力，治愈心情 ✨</p>
+            <button id="start-btn" class="btn-touch w-full py-4 bg-gradient-to-r from-pink-400 to-pink-300 text-white text-xl rounded-full q-shadow font-bold">
+                ✨ 开启治愈之旅
+            </button>
+            <div id="loading-indicator" class="hidden flex-col items-center mt-4">
+                <div class="loader mb-3"></div>
+                <p class="text-gray-500">正在唤醒魔法引擎...</p>
+            </div>
         </div>
-      </div>
-    </div>
+    </section>
 
-    <!-- 倒计时进度环 -->
-    <div id="progress-container" class="progress-ring-container">
-      <svg class="progress-ring" viewBox="0 0 200 200">
-        <circle stroke="rgba(255,255,255,0.5)" stroke-width="12" fill="transparent" r="80" cx="100" cy="100"/>
-        <circle id="progress-ring-circle" class="progress-ring-circle" stroke="#ff9eb5" stroke-width="12" fill="transparent" r="80" cx="100" cy="100" stroke-dasharray="502" stroke-dashoffset="502" stroke-linecap="round"/>
-      </svg>
-      <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
-        <span id="progress-text" style="font-size: clamp(36px, 9vw, 48px); font-weight: bold; color: #ff9eb5;">3</span>
-      </div>
-    </div>
+    <!-- 第二页：类别选择 -->
+    <section id="page-category" class="screen">
+        <div class="card w-[92%] max-w-[500px] p-6">
+            <h2 class="text-2xl text-center mb-6 text-pink-400">选择捏捏类别 🎯</h2>
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="category-card text-center" data-category="fruit">
+                    <div style="font-size: 40px;">🍓</div>
+                    <div class="font-bold mt-2">水果捏捏</div>
+                    <div class="text-sm text-gray-400">8种水果</div>
+                </div>
+                <div class="category-card text-center" data-category="crawler">
+                    <div style="font-size: 40px;">🪳</div>
+                    <div class="font-bold mt-2">爬虫捏捏</div>
+                    <div class="text-sm text-gray-400">8种爬虫</div>
+                </div>
+                <div class="category-card text-center" data-category="animal">
+                    <div style="font-size: 40px;">🐰</div>
+                    <div class="font-bold mt-2">动物捏捏</div>
+                    <div class="text-sm text-gray-400">8种动物</div>
+                </div>
+                <div class="category-card text-center" data-category="dessert">
+                    <div style="font-size: 40px;">🧁</div>
+                    <div class="font-bold mt-2">甜品捏捏</div>
+                    <div class="text-sm text-gray-400">8种甜品</div>
+                </div>
+            </div>
+            <div id="toy-selector" class="hidden mb-4">
+                <h3 id="toy-category-label" class="text-lg text-center mb-3"></h3>
+                <div id="toy-grid" class="flex flex-wrap gap-2 justify-center max-h-[200px] overflow-y-auto p-2"></div>
+            </div>
+            <button id="play-btn" class="btn-touch w-full py-3 bg-gradient-to-r from-pink-400 to-pink-300 text-white text-lg rounded-full q-shadow font-bold hidden">
+                📷 开始捏捏
+            </button>
+            <button id="back-btn" class="btn-touch w-full py-2 mt-3 bg-gray-100 text-gray-600 rounded-full">
+                返回首页
+            </button>
+        </div>
+    </section>
 
-  </section>
+    <!-- 第三页：游戏页 -->
+    <section id="page-game" class="screen">
+        <div id="game-ui" class="absolute inset-0 pointer-events-none z-20 hidden">
+            <div class="w-full text-center pt-6">
+                <div class="inline-block bg-white/85 backdrop-blur px-5 py-2 rounded-full q-shadow">
+                    <span id="instruction-text">✋ 将手放在镜头前，握紧拳头</span>
+                </div>
+            </div>
+            <div id="progress-container" class="progress-ring-container">
+                <svg class="progress-ring" viewBox="0 0 200 200">
+                    <circle stroke="rgba(255,255,255,0.5)" stroke-width="12" fill="transparent" r="80" cx="100" cy="100"/>
+                    <circle id="progress-ring-circle" class="progress-ring-circle" stroke="#FF9A9E" stroke-width="12" fill="transparent" r="80" cx="100" cy="100" stroke-dasharray="502" stroke-dashoffset="502" stroke-linecap="round"/>
+                </svg>
+                <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
+                    <span id="progress-text" style="font-size: 48px; font-weight: bold; color: #FF9A9E;">3</span>
+                </div>
+            </div>
+            <div class="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-auto">
+                <button id="exit-btn" class="btn-touch px-6 py-2 bg-white/80 rounded-full q-shadow text-sm">
+                    ← 返回选择
+                </button>
+            </div>
+        </div>
+    </section>
 
-  <!-- 底部导航栏 -->
-  <nav id="bottom-nav" class="bottom-nav">
-    <div class="nav-content">
-      <div class="flex justify-between items-center mb-3">
-        <div id="current-category" class="text-base font-semibold"></div>
-        <button id="back-category" class="btn-touch" style="padding: 8px 16px; font-size: 14px; background: rgba(255,255,255,0.8); border: 1px solid #f4d7bd;">
-          <span>←</span> 返回
-        </button>
-      </div>
-      <div id="toy-grid" class="grid-toys"></div>
-    </div>
-  </nav>
-
-  <!-- 加载提示 -->
-  <div id="loading-overlay" class="screen" style="background: rgba(248, 241, 231, 0.95); z-index: 100;">
-    <div class="text-center">
-      <div class="loader mb-4" style="margin: 0 auto;"></div>
-      <p class="text-lg font-semibold">正在启动摄像头...</p>
-      <p class="text-sm opacity-70 mt-2">请允许摄像头权限</p>
-    </div>
-  </div>
-
-  <script>
+    <script>
     // ==================== 配置 ====================
     const CONFIG = {
-      HOLD_TIME_MS: 3000,
-      GRACE_PERIOD_MS: 600, // 增加容错时间
-      FIST_THRESHOLD: 0.65, // 降低握拳阈值，提高灵敏度
-      EMA_ALPHA: 0.28, // 增加平滑系数
-      TOUCH_FEEDBACK_DURATION: 100
+        HOLD_TIME_MS: 3000,
+        GRACE_PERIOD_MS: 600,
+        FIST_THRESHOLD: 0.65,
+        EMA_ALPHA: 0.28,
+        PARTICLE_COUNT: 100
     };
 
-    // ==================== 状态管理 ====================
-    const state = {
-      category: 'fruit',
-      toyIndex: 0,
-      squeeze: 0,
-      isSqueezing: false,
-      squeezeStartTime: 0,
-      lastSqueezeTime: 0,
-      fistFactor: 0,
-      smoothedFistFactor: 0,
-      exploded: false,
-      particles: [],
-      crawlers: [],
-      waveT: 0,
-      floaters: [],
-      cameraStarted: false,
-      isLoading: false
+    // ==================== 状态 ====================
+    const STATE = {
+        currentCategory: 'fruit',
+        currentToy: 0,
+        fistFactor: 0,
+        smoothedFistFactor: 0,
+        isSqueezing: false,
+        squeezeStartTime: 0,
+        lastSqueezeTime: 0,
+        isExploded: false,
+        particles: [],
+        crawlers: [],
+        floaters: [],
+        cameraActive: false
+    };
+
+    // ==================== 捏捏数据 ====================
+    const TOYS = {
+        fruit: [
+            { name: '蜜桃', emoji: '🍑', c1: '#FFB4A2', c2: '#FFCDB2', juice: 'rgba(255,180,162,0.8)' },
+            { name: '香橙', emoji: '🍊', c1: '#FB8500', c2: '#FFB703', juice: 'rgba(251,133,0,0.8)' },
+            { name: '草莓', emoji: '🍓', c1: '#FF595E', c2: '#FF9296', juice: 'rgba(255,89,94,0.8)' },
+            { name: '葡萄', emoji: '🍇', c1: '#9B5DE5', c2: '#C77DFF', juice: 'rgba(155,93,229,0.8)' },
+            { name: '西瓜', emoji: '🍉', c1: '#70E000', c2: '#9EF01A', juice: 'rgba(112,224,0,0.8)' },
+            { name: '柠檬', emoji: '🍋', c1: '#FFE500', c2: '#FFF75E', juice: 'rgba(255,229,0,0.8)' },
+            { name: '樱桃', emoji: '🍒', c1: '#D90429', c2: '#EF233C', juice: 'rgba(217,4,41,0.8)' },
+            { name: '苹果', emoji: '🍎', c1: '#E63946', c2: '#F4845F', juice: 'rgba(230,57,70,0.8)' }
+        ],
+        crawler: [
+            { name: '蟑螂', emoji: '🪳', c1: '#8B4513', c2: '#A0522D', juice: 'rgba(139,69,19,0.8)' },
+            { name: '蜘蛛', emoji: '🕷️', c1: '#2D2D2D', c2: '#4A4A4A', juice: 'rgba(45,45,45,0.8)' },
+            { name: '蚂蚁', emoji: '🐜', c1: '#1A1A1A', c2: '#333333', juice: 'rgba(26,26,26,0.8)' },
+            { name: '毛毛虫', emoji: '🐛', c1: '#7CB518', c2: '#AACC00', juice: 'rgba(124,181,24,0.8)' },
+            { name: '蜗牛', emoji: '🐌', c1: '#D4A373', c2: '#E9C46A', juice: 'rgba(212,163,115,0.8)' },
+            { name: '蝎子', emoji: '🦂', c1: '#5C4033', c2: '#8B7355', juice: 'rgba(92,64,51,0.8)' },
+            { name: '蜈蚣', emoji: '🦎', c1: '#556B2F', c2: '#6B8E23', juice: 'rgba(85,107,47,0.8)' },
+            { name: '甲虫', emoji: '🪲', c1: '#228B22', c2: '#32CD32', juice: 'rgba(34,139,34,0.8)' }
+        ],
+        animal: [
+            { name: '小兔', emoji: '🐰', c1: '#FFB6C1', c2: '#FFC0CB', juice: 'rgba(255,182,193,0.8)' },
+            { name: '小猫', emoji: '🐱', c1: '#FFD4A3', c2: '#FFE4C4', juice: 'rgba(255,212,163,0.8)' },
+            { name: '小狗', emoji: '🐶', c1: '#D4A574', c2: '#E8C39E', juice: 'rgba(212,165,116,0.8)' },
+            { name: '小熊', emoji: '🐻', c1: '#CD853F', c2: '#DEB887', juice: 'rgba(205,133,63,0.8)' },
+            { name: '熊猫', emoji: '🐼', c1: '#2C2C2C', c2: '#4A4A4A', juice: 'rgba(44,44,44,0.8)' },
+            { name: '狐狸', emoji: '🦊', c1: '#FF8C00', c2: '#FFA500', juice: 'rgba(255,140,0,0.8)' },
+            { name: '仓鼠', emoji: '🐹', c1: '#F5DEB3', c2: '#FFEFD5', juice: 'rgba(245,222,179,0.8)' },
+            { name: '独角兽', emoji: '🦄', c1: '#E0B0FF', c2: '#F0C0FF', juice: 'rgba(224,176,255,0.8)' }
+        ],
+        dessert: [
+            { name: '纸杯蛋糕', emoji: '🧁', c1: '#FFB6C1', c2: '#FFC0CB', juice: 'rgba(255,182,193,0.8)' },
+            { name: '蛋糕', emoji: '🎂', c1: '#FF69B4', c2: '#FFB6C1', juice: 'rgba(255,105,180,0.8)' },
+            { name: '甜甜圈', emoji: '🍩', c1: '#D2691E', c2: '#F4A460', juice: 'rgba(210,105,30,0.8)' },
+            { name: '曲奇', emoji: '🍪', c1: '#D2B48C', c2: '#F5DEB3', juice: 'rgba(210,180,140,0.8)' },
+            { name: '布丁', emoji: '🍮', c1: '#FFD700', c2: '#FFEC8B', juice: 'rgba(255,215,0,0.8)' },
+            { name: '冰淇淋', emoji: '🍦', c1: '#87CEEB', c2: '#B0E0E6', juice: 'rgba(135,206,235,0.8)' },
+            { name: '巧克力', emoji: '🍫', c1: '#8B4513', c2: '#A0522D', juice: 'rgba(139,69,19,0.8)' },
+            { name: '团子', emoji: '🍡', c1: '#FFDAB9', c2: '#FFE4B5', juice: 'rgba(255,218,185,0.8)' }
+        ]
     };
 
     // ==================== DOM元素 ====================
-    const pages = {
-      landing: document.getElementById('page-landing'),
-      category: document.getElementById('page-category')
-    };
-    const playUI = document.getElementById('play-ui');
-    const canvas = document.getElementById('play-canvas');
+    const canvas = document.getElementById('main-canvas');
     const ctx = canvas.getContext('2d');
-    const statusText = document.getElementById('instruction-text');
-    const categoryGrid = document.getElementById('category-grid');
-    const toyGrid = document.getElementById('toy-grid');
-    const currentCategoryLabel = document.getElementById('current-category');
     const floatingLayer = document.getElementById('floating-layer');
-    const bottomNav = document.getElementById('bottom-nav');
-    const loadingOverlay = document.getElementById('loading-overlay');
+    const videoElement = document.querySelector('.input_video');
+    const cameraPreview = document.getElementById('camera-preview');
+    const pages = {
+        start: document.getElementById('page-start'),
+        category: document.getElementById('page-category'),
+        game: document.getElementById('page-game')
+    };
+    const startBtn = document.getElementById('start-btn');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const categoryCards = document.querySelectorAll('.category-card');
+    const toySelector = document.getElementById('toy-selector');
+    const toyGrid = document.getElementById('toy-grid');
+    const toyCategoryLabel = document.getElementById('toy-category-label');
+    const playBtn = document.getElementById('play-btn');
+    const backBtn = document.getElementById('back-btn');
+    const exitBtn = document.getElementById('exit-btn');
+    const gameUI = document.getElementById('game-ui');
+    const instructionText = document.getElementById('instruction-text');
     const progressContainer = document.getElementById('progress-container');
     const progressRing = document.getElementById('progress-ring-circle');
     const progressText = document.getElementById('progress-text');
 
-    const videoElement = document.querySelector('.input_video');
-    const cameraPreview = document.getElementById('camera-preview');
-
-    // ==================== 数据 ====================
-    const CATEGORIES = {
-      fruit: { name: '水果捏捏', icon: '🍓', popWave: '#ffb5c8' },
-      crawler: { name: '爬虫捏捏', icon: '🪳', popWave: '#d2b48c' },
-      animal: { name: '动物捏捏', icon: '🐰', popWave: '#c8d9ff' },
-      dessert: { name: '甜品捏捏', icon: '🧁', popWave: '#ffd8a8' }
-    };
-
-    const TOYS = {
-      fruit: [
-        { emoji:'🍑', name:'蜜桃', model:'peach', c1:'#ffb09e', c2:'#ffd2c8' },
-        { emoji:'🍊', name:'香橙', model:'orange', c1:'#ffa62b', c2:'#ffd166' },
-        { emoji:'🍓', name:'草莓', model:'strawberry', c1:'#ff5d73', c2:'#ff98a8' },
-        { emoji:'🍉', name:'西瓜', model:'melon', c1:'#2f9e44', c2:'#ff6b6b' },
-        { emoji:'🍍', name:'菠萝', model:'pineapple', c1:'#ffd43b', c2:'#74b816' },
-        { emoji:'🍇', name:'葡萄', model:'grape', c1:'#9d4edd', c2:'#c77dff' },
-        { emoji:'🍋', name:'柠檬', model:'lemon', c1:'#ffd93d', c2:'#fff3bf' },
-        { emoji:'🥝', name:'奇异果', model:'kiwi', c1:'#7cb342', c2:'#cddc39' }
-      ],
-      crawler: [
-        { emoji:'🪳', name:'蟑螂', model:'roach', c1:'#8d6e63', c2:'#bcaaa4' },
-        { emoji:'🐞', name:'瓢虫', model:'ladybug', c1:'#ef5350', c2:'#ff8a80' },
-        { emoji:'🐜', name:'蚂蚁', model:'ant', c1:'#6d4c41', c2:'#a1887f' },
-        { emoji:'🕷️', name:'蜘蛛', model:'spider', c1:'#607d8b', c2:'#90a4ae' },
-        { emoji:'🦂', name:'蝎子', model:'scorpion', c1:'#795548', c2:'#a1887f' },
-        { emoji:'🪲', name:'甲虫', model:'beetle', c1:'#455a64', c2:'#78909c' },
-        { emoji:'🐛', name:'毛毛虫', model:'worm', c1:'#81c784', c2:'#c5e1a5' },
-        { emoji:'🪰', name:'小飞虫', model:'fly', c1:'#90a4ae', c2:'#cfd8dc' }
-      ],
-      animal: [
-        { emoji:'🐰', name:'兔兔', model:'bunny', c1:'#ffe3ec', c2:'#fff' },
-        { emoji:'🐱', name:'喵咪', model:'cat', c1:'#ffd8b1', c2:'#fff3e0' },
-        { emoji:'🐶', name:'小狗', model:'dog', c1:'#f4c095', c2:'#ffe8cc' },
-        { emoji:'🐻', name:'小熊', model:'bear', c1:'#b08968', c2:'#ddb892' },
-        { emoji:'🐼', name:'熊猫', model:'panda', c1:'#f8f9fa', c2:'#dee2e6' },
-        { emoji:'🦊', name:'小狐狸', model:'fox', c1:'#ff922b', c2:'#ffd8a8' },
-        { emoji:'🐹', name:'仓鼠', model:'hamster', c1:'#ffd8a8', c2:'#ffe8cc' },
-        { emoji:'🦄', name:'独角兽', model:'unicorn', c1:'#e599f7', c2:'#f3d9fa' }
-      ],
-      dessert: [
-        { emoji:'🧁', name:'杯子蛋糕', model:'cupcake', c1:'#ffcad4', c2:'#cdb4db' },
-        { emoji:'🍰', name:'奶油蛋糕', model:'cake', c1:'#ffe5b4', c2:'#ffc8dd' },
-        { emoji:'🍮', name:'布丁', model:'pudding', c1:'#f4a261', c2:'#ffd6a5' },
-        { emoji:'🍩', name:'甜甜圈', model:'donut', c1:'#f7cad0', c2:'#ffe5ec' },
-        { emoji:'🍪', name:'曲奇', model:'cookie', c1:'#c08552', c2:'#e0b589' },
-        { emoji:'🍫', name:'巧克力', model:'choco', c1:'#6f4e37', c2:'#9c6644' },
-        { emoji:'🍡', name:'团子', model:'dango', c1:'#ffd6e0', c2:'#fff1f3' },
-        { emoji:'🍦', name:'冰淇淋', model:'icecream', c1:'#ffd6a5', c2:'#bde0fe' }
-      ]
-    };
-
-    // ==================== 音频管理 ====================
+    // ==================== 音频系统 ====================
     class AudioManager {
-      constructor() { 
-        this.ctx = null; 
-        this.master = null; 
-        this.lastSponge = 0; 
-      }
-      
-      ensure() {
-        if (this.ctx) return;
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        if (!AudioContext) return;
-        this.ctx = new AudioContext();
-        this.master = this.ctx.createGain();
-        this.master.gain.value = 0.48;
-        this.master.connect(this.ctx.destination);
-      }
-      
-      sponge() {
-        this.ensure();
-        if (!this.ctx) return;
-        const now = performance.now();
-        if (now - this.lastSponge < 120) return;
-        this.lastSponge = now;
-        
-        const o = this.ctx.createOscillator();
-        const g = this.ctx.createGain();
-        o.type = 'sine';
-        o.frequency.setValueAtTime(280, this.ctx.currentTime);
-        o.frequency.exponentialRampToValueAtTime(120, this.ctx.currentTime + 0.12);
-        g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.18, this.ctx.currentTime + 0.03);
-        g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.14);
-        o.connect(g);
-        g.connect(this.master);
-        o.start();
-        o.stop(this.ctx.currentTime + 0.16);
-      }
-      
-      boom(category) {
-        this.ensure();
-        if (!this.ctx) return;
-        
-        const baseFreq = category === 'crawler' ? 140 : 180;
-        for (let i = 0; i < 5; i++) {
-          const o = this.ctx.createOscillator();
-          const g = this.ctx.createGain();
-          o.type = i % 2 === 0 ? 'sawtooth' : 'square';
-          o.frequency.setValueAtTime(baseFreq + i * 40, this.ctx.currentTime);
-          o.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.4 + i * 0.05);
-          g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-          g.gain.exponentialRampToValueAtTime(0.22 - i * 0.03, this.ctx.currentTime + 0.05);
-          g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.45 + i * 0.05);
-          o.connect(g);
-          g.connect(this.master);
-          o.start();
-          o.stop(this.ctx.currentTime + 0.55);
+        constructor() {
+            this.bgMusic = null;
+            this.squishSound = null;
+            this.popSound = null;
+            this.crawlerSound = null;
+            this.init();
         }
-      }
+
+        init() {
+            // 使用Web Audio API生成音效
+            this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+
+        playBgMusic() {
+            // 模拟轻柔的背景音乐（使用振荡器生成简单的和弦）
+            if (this.bgMusicInterval) return;
+            
+            const playNote = (freq, duration) => {
+                const osc = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                osc.frequency.value = freq;
+                osc.type = 'sine';
+                gain.gain.setValueAtTime(0.03, this.audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + duration);
+                osc.start();
+                osc.stop(this.audioCtx.currentTime + duration);
+            };
+
+            const notes = [261.63, 329.63, 392.00, 523.25]; // C大调和弦
+            let noteIndex = 0;
+            
+            const playChord = () => {
+                playNote(notes[noteIndex % notes.length], 2);
+                noteIndex++;
+            };
+
+            playChord();
+            this.bgMusicInterval = setInterval(playChord, 3000);
+        }
+
+        stopBgMusic() {
+            if (this.bgMusicInterval) {
+                clearInterval(this.bgMusicInterval);
+                this.bgMusicInterval = null;
+            }
+        }
+
+        playSquish() {
+            const osc = this.audioCtx.createOscillator();
+            const gain = this.audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(this.audioCtx.destination);
+            osc.frequency.setValueAtTime(200, this.audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(100, this.audioCtx.currentTime + 0.1);
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.15, this.audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + 0.15);
+            osc.start();
+            osc.stop(this.audioCtx.currentTime + 0.15);
+        }
+
+        playPop(category) {
+            const osc = this.audioCtx.createOscillator();
+            const gain = this.audioCtx.createGain();
+            const filter = this.audioCtx.createBiquadFilter();
+            
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.audioCtx.destination);
+            
+            filter.type = 'lowpass';
+            filter.frequency.value = category === 'crawler' ? 300 : 800;
+            
+            osc.frequency.setValueAtTime(400, this.audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(50, this.audioCtx.currentTime + 0.3);
+            osc.type = 'sine';
+            
+            gain.gain.setValueAtTime(0.2, this.audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + 0.3);
+            
+            osc.start();
+            osc.stop(this.audioCtx.currentTime + 0.3);
+        }
     }
-    
+
     const audio = new AudioManager();
 
-    // ==================== 工具函数 ====================
-    function setPage(name) {
-      Object.values(pages).forEach(p => p.classList.remove('active'));
-      if (pages[name]) pages[name].classList.add('active');
-      if (name === 'landing') spawnFloaters();
+    // ==================== Canvas初始化 ====================
+    function resizeCanvas() {
+        canvas.width = window.innerWidth * window.devicePixelRatio;
+        canvas.height = window.innerHeight * window.devicePixelRatio;
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
     }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
 
-    async function startPlay() {
-      setPage('');
-      playUI.style.display = 'block';
-      bottomNav.classList.add('active');
-      renderToyGrid();
-      updateCategoryLabel();
-      
-      // 显示加载
-      loadingOverlay.classList.add('active');
-      state.isLoading = true;
-      
-      try {
-        await setupCameraHands();
-      } catch (err) {
-        console.error('启动失败:', err);
-      } finally {
-        loadingOverlay.classList.remove('active');
-        state.isLoading = false;
-      }
-    }
-
-    function initCategories() {
-      categoryGrid.innerHTML = '';
-      Object.entries(CATEGORIES).forEach(([key, cat]) => {
-        const btn = document.createElement('button');
-        btn.className = `cat-btn touch-feedback ${key === state.category ? 'active' : ''}`;
-        btn.innerHTML = `
-          <span class="icon">${cat.icon}</span>
-          <span class="label">${cat.name}</span>
-        `;
-        btn.onclick = () => {
-          document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          state.category = key;
-        };
-        categoryGrid.appendChild(btn);
-      });
-    }
-
-    function renderToyGrid() {
-      toyGrid.innerHTML = '';
-      TOYS[state.category].forEach((toy, idx) => {
-        const btn = document.createElement('button');
-        btn.className = `toy-btn touch-feedback ${idx === state.toyIndex ? 'active' : ''}`;
-        btn.innerHTML = `
-          <span class="emoji">${toy.emoji}</span>
-          <span class="name">${toy.name}</span>
-        `;
-        btn.onclick = () => {
-          state.toyIndex = idx;
-          state.exploded = false;
-          state.particles = [];
-          state.crawlers = [];
-          document.querySelectorAll('#toy-grid .toy-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-        };
-        toyGrid.appendChild(btn);
-      });
-    }
-
-    function updateCategoryLabel() {
-      currentCategoryLabel.textContent = CATEGORIES[state.category].name;
-    }
-
+    // ==================== 浮动图形系统 ====================
     function spawnFloaters() {
-      floatingLayer.innerHTML = '';
-      state.floaters = [];
-      const pool = Object.values(TOYS).flat().map(x => x.emoji);
-      const count = window.innerWidth < 768 ? 10 : 14;
-      
-      for (let i = 0; i < count; i++) {
-        const e = document.createElement('div');
-        e.className = 'float-toy';
-        e.textContent = pool[Math.floor(Math.random() * pool.length)];
-        const x = Math.random() * window.innerWidth;
-        const y = Math.random() * window.innerHeight;
-        const vx = (Math.random() - 0.5) * 0.5;
-        const vy = (Math.random() - 0.5) * 0.5;
-        const rot = Math.random() * 360;
-        const s = 0.7 + Math.random() * 0.5;
-        state.floaters.push({el:e,x,y,vx,vy,rot,s});
-        floatingLayer.appendChild(e);
-      }
+        floatingLayer.innerHTML = '';
+        STATE.floaters = [];
+        const allToys = Object.values(TOYS).flat();
+        const count = window.innerWidth < 768 ? 12 : 18;
+
+        for (let i = 0; i < count; i++) {
+            const toy = allToys[Math.floor(Math.random() * allToys.length)];
+            const el = document.createElement('div');
+            el.className = 'float-toy';
+            el.textContent = toy.emoji;
+            
+            const x = Math.random() * window.innerWidth;
+            const y = Math.random() * window.innerHeight;
+            const vx = (Math.random() - 0.5) * 0.8;
+            const vy = (Math.random() - 0.5) * 0.8;
+            const rot = Math.random() * 360;
+            const s = 0.6 + Math.random() * 0.6;
+
+            STATE.floaters.push({ el, x, y, vx, vy, rot, s });
+            floatingLayer.appendChild(el);
+        }
     }
 
     function updateFloaters() {
-      const safe = { 
-        x: window.innerWidth / 2 - Math.min(window.innerWidth * 0.4, 300), 
-        y: window.innerHeight / 2 - Math.min(window.innerHeight * 0.3, 200), 
-        w: Math.min(window.innerWidth * 0.8, 600), 
-        h: Math.min(window.innerHeight * 0.6, 400) 
-      };
-      
-      for (const f of state.floaters) {
-        f.x += f.vx; 
-        f.y += f.vy; 
-        f.rot += 0.2;
-        if (f.x < 0 || f.x > window.innerWidth - 30) f.vx *= -1;
-        if (f.y < 0 || f.y > window.innerHeight - 30) f.vy *= -1;
-        if (f.x > safe.x && f.x < safe.x + safe.w && f.y > safe.y && f.y < safe.y + safe.h) {
-          f.vx += (f.x < window.innerWidth / 2 ? -0.2 : 0.2);
-          f.vy += (f.y < window.innerHeight / 2 ? -0.2 : 0.2);
-        }
-        f.vx = Math.max(-0.9, Math.min(0.9, f.vx));
-        f.vy = Math.max(-0.9, Math.min(0.9, f.vy));
-        f.el.style.transform = `translate(${f.x}px, ${f.y}px) rotate(${f.rot}deg) scale(${f.s})`;
-      }
-    }
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+        const safeRadius = Math.min(window.innerWidth, window.innerHeight) * 0.25;
 
-    function resize() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = window.innerWidth * dpr;
-      canvas.height = window.innerHeight * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
+        STATE.floaters.forEach(f => {
+            f.x += f.vx;
+            f.y += f.vy;
+            f.rot += 0.3;
 
-    function drawSoftHighlight(x, y, rx, ry) {
-      ctx.fillStyle = 'rgba(255,255,255,.55)';
-      ctx.beginPath();
-      ctx.ellipse(x, y, rx, ry, -0.35, 0, Math.PI*2);
-      ctx.fill();
-    }
+            // 边界反弹
+            if (f.x < 0 || f.x > window.innerWidth) f.vx *= -1;
+            if (f.y < 0 || f.y > window.innerHeight) f.vy *= -1;
 
-    // ==================== 绘制模型 ====================
-    function drawModel(toy, cx, cy, baseScale = 1.2, scale = 1) {
-      // 根据传入的baseScale计算缩放
-      const s = (1 + state.squeeze * 0.22) * baseScale;
-      const sy = (1 - state.squeeze * 0.18) * baseScale;
-      
-      ctx.save();
-      ctx.translate(cx, cy);
-      if (state.squeeze > 0.75) ctx.translate((Math.random()-.5)*2, (Math.random()-.5)*2);
-      ctx.scale(s, sy);
-      ctx.shadowColor = 'rgba(108,88,76,.22)';
-      ctx.shadowBlur = 24;
-      ctx.shadowOffsetY = 12;
+            // 避开中心区域
+            const dx = f.x - centerX;
+            const dy = f.y - centerY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < safeRadius) {
+                const angle = Math.atan2(dy, dx);
+                f.vx += Math.cos(angle) * 0.1;
+                f.vy += Math.sin(angle) * 0.1;
+            }
 
-      const grad = ctx.createRadialGradient(-20, -30, 10, 0, 0, 200);
-      grad.addColorStop(0, toy.c2);
-      grad.addColorStop(1, toy.c1);
-      ctx.fillStyle = grad;
+            // 限制速度
+            const speed = Math.sqrt(f.vx * f.vx + f.vy * f.vy);
+            if (speed > 1.5) {
+                f.vx *= 0.9;
+                f.vy *= 0.9;
+            }
 
-      switch (toy.model) {
-        case 'peach':
-          ctx.beginPath();
-          ctx.moveTo(0, -84);
-          ctx.bezierCurveTo(85,-110,130,20,0,120);
-          ctx.bezierCurveTo(-130,20,-85,-110,0,-84);
-          ctx.fill();
-          ctx.strokeStyle = 'rgba(180,90,95,.35)'; ctx.lineWidth = 3;
-          ctx.beginPath(); ctx.moveTo(0,-75); ctx.quadraticCurveTo(-18,20,0,112); ctx.stroke();
-          break;
-        case 'orange':
-        case 'kiwi':
-        case 'lemon':
-          ctx.beginPath(); ctx.ellipse(0, 0, 112, 96, 0, 0, Math.PI*2); ctx.fill();
-          break;
-        case 'strawberry':
-          ctx.beginPath();
-          ctx.moveTo(0,-95);
-          ctx.bezierCurveTo(88,-92,105,-10,50,95);
-          ctx.quadraticCurveTo(0,127,-50,95);
-          ctx.bezierCurveTo(-105,-10,-88,-92,0,-95);
-          ctx.fill();
-          break;
-        case 'melon':
-          ctx.beginPath(); ctx.arc(0, 8, 115, Math.PI, 0); ctx.closePath(); ctx.fill();
-          break;
-        case 'pineapple':
-          ctx.beginPath(); ctx.ellipse(0, 10, 88, 120, 0, 0, Math.PI*2); ctx.fill();
-          break;
-        case 'grape':
-          for (let i=0;i<8;i++) { 
-            const a=i/8*Math.PI*2; 
-            ctx.beginPath(); 
-            ctx.arc(Math.cos(a)*42, Math.sin(a)*36+8, 34, 0, Math.PI*2); 
-            ctx.fill(); 
-          }
-          ctx.beginPath(); ctx.arc(0,-24,34,0,Math.PI*2); ctx.fill();
-          break;
-        case 'roach':
-        case 'beetle':
-          ctx.beginPath(); ctx.ellipse(0,10,78,110,0,0,Math.PI*2); ctx.fill();
-          break;
-        case 'ant':
-          ctx.beginPath(); ctx.arc(-38, 20, 26, 0, Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.arc(0, 15, 30, 0, Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.arc(42, 5, 36, 0, Math.PI*2); ctx.fill();
-          break;
-        case 'spider':
-          ctx.beginPath(); ctx.arc(0, 22, 56, 0, Math.PI*2); ctx.fill();
-          break;
-        case 'scorpion':
-          ctx.beginPath(); ctx.ellipse(0, 20, 74, 86, 0, 0, Math.PI*2); ctx.fill();
-          break;
-        case 'worm':
-          ctx.beginPath();
-          ctx.moveTo(-95,0);
-          for(let x=-95;x<=95;x+=12){ ctx.lineTo(x, Math.sin(x/16)*22); }
-          ctx.lineTo(95,35); ctx.lineTo(-95,35); ctx.closePath();
-          ctx.fill();
-          break;
-        case 'fly':
-          ctx.beginPath(); ctx.ellipse(0, 10, 48, 78, 0, 0, Math.PI*2); ctx.fill();
-          break;
-        case 'bunny':
-          ctx.beginPath(); ctx.ellipse(-34,-108,20,54,0,0,Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.ellipse(34,-108,20,54,0,0,Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.arc(0, 10, 95, 0, Math.PI*2); ctx.fill();
-          break;
-        case 'cat':
-        case 'fox':
-        case 'bear':
-        case 'panda':
-        case 'hamster':
-        case 'dog':
-        case 'unicorn':
-          ctx.beginPath(); ctx.arc(0, 10, 98, 0, Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.moveTo(-72,-48); ctx.lineTo(-26,-102); ctx.lineTo(-10,-26); ctx.closePath(); ctx.fill();
-          ctx.beginPath(); ctx.moveTo(72,-48); ctx.lineTo(26,-102); ctx.lineTo(10,-26); ctx.closePath(); ctx.fill();
-          break;
-        case 'cupcake':
-          ctx.beginPath(); ctx.ellipse(0,-45,92,56,0,0,Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.moveTo(-75,0); ctx.lineTo(75,0); ctx.lineTo(55,108); ctx.lineTo(-55,108); ctx.closePath(); ctx.fill();
-          break;
-        case 'cake':
-        case 'choco':
-          ctx.beginPath(); ctx.roundRect(-95,-44,190,120,20); ctx.fill();
-          break;
-        case 'pudding':
-          ctx.beginPath(); ctx.moveTo(-75,-40); ctx.quadraticCurveTo(0,-86,75,-40); ctx.lineTo(52,100); ctx.lineTo(-52,100); ctx.closePath(); ctx.fill();
-          break;
-        case 'donut':
-          ctx.beginPath(); ctx.arc(0, 10, 102, 0, Math.PI*2); ctx.fill();
-          ctx.globalCompositeOperation = 'destination-out';
-          ctx.beginPath(); ctx.arc(0,10,35,0,Math.PI*2); ctx.fill();
-          ctx.globalCompositeOperation = 'source-over';
-          break;
-        case 'cookie':
-          ctx.beginPath(); ctx.arc(0,10,98,0,Math.PI*2); ctx.fill();
-          break;
-        case 'dango':
-          ctx.beginPath(); ctx.arc(-52,12,44,0,Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.arc(0,12,44,0,Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.arc(52,12,44,0,Math.PI*2); ctx.fill();
-          break;
-        case 'icecream':
-          ctx.beginPath(); ctx.arc(0,-32,70,0,Math.PI*2); ctx.fill();
-          ctx.beginPath(); ctx.moveTo(-45,8); ctx.lineTo(45,8); ctx.lineTo(0,120); ctx.closePath(); ctx.fill();
-          break;
-      }
-
-      ctx.shadowColor = 'transparent';
-      drawSoftHighlight(-36,-34,28,14);
-      ctx.font = '78px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(toy.emoji, 0, 8);
-      ctx.restore();
-
-      // 绘制名称（自适应缩放）
-      ctx.fillStyle = '#7a6758';
-      const nameFontSize = Math.round(24 * Math.min(1.2, scale || 1));
-      ctx.font = `${nameFontSize}px ZCOOL KuaiLe`;
-      ctx.textAlign = 'center';
-      const nameOffset = Math.round(160 * Math.min(1.2, scale || 1));
-      ctx.fillText(toy.name, cx, cy + nameOffset);
-    }
-
-    // ==================== 爆炸效果 ====================
-    function spawnExplosion() {
-      state.exploded = true;
-      state.particles = [];
-      // 爆炸位置：屏幕正中间
-      const cx = window.innerWidth / 2;
-      const cy = window.innerHeight / 2;
-      
-      const n = state.category === 'crawler' ? 92 : 128;
-      
-      for (let i = 0; i < n; i++) {
-        const a = Math.random() * Math.PI * 2;
-        const sp = 4 + Math.random() * 11;
-        state.particles.push({ 
-          x: cx, 
-          y: cy, 
-          vx: Math.cos(a)*sp, 
-          vy: Math.sin(a)*sp - 1, 
-          life: 1, 
-          size: 5 + Math.random()*8, 
-          hue: Math.random()*16 
+            f.el.style.transform = `translate(${f.x}px, ${f.y}px) rotate(${f.rot}deg) scale(${f.s})`;
         });
-      }
-      
-      if (state.category === 'crawler') {
-        state.crawlers = [];
-        const toy = TOYS.crawler[state.toyIndex].emoji;
-        for (let i = 0; i < 30; i++) {
-          state.crawlers.push({ 
-            emoji: toy, 
-            x: cx, 
-            y: cy, 
-            a: Math.random() * Math.PI * 2, 
-            speed: 0.9 + Math.random()*1.5, 
-            phase: Math.random()*Math.PI*2, 
-            size: 20 + Math.random()*14 
-          });
+    }
+
+    // ==================== 绘制捏捏 ====================
+    function drawToy(toy, x, y, scale, squeeze) {
+        ctx.save();
+        ctx.translate(x, y);
+
+        const sx = scale * (1 + squeeze * 0.35);
+        const sy = scale * (1 - squeeze * 0.35);
+        
+        if (squeeze > 0.75) {
+            ctx.rotate((Math.random() - 0.5) * 0.05);
+            ctx.translate((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3);
         }
-      }
-      
-      audio.boom(state.category);
-      statusText.textContent = state.category === 'crawler' ? '呀！同类爬虫正在四处乱爬～' : '砰！压力被释放啦～';
-      
-      setTimeout(() => {
-        state.exploded = false;
-        state.particles = [];
-        state.crawlers = [];
-        state.squeeze = 0;
-        statusText.textContent = '继续握拳还能再捏一次';
-      }, 2600);
+        ctx.scale(sx, sy);
+
+        ctx.shadowColor = 'rgba(108,88,76,0.25)';
+        ctx.shadowBlur = 30;
+        ctx.shadowOffsetY = 15;
+
+        const grad = ctx.createRadialGradient(-20, -20, 10, 0, 0, 100);
+        grad.addColorStop(0, toy.c2);
+        grad.addColorStop(1, toy.c1);
+        ctx.fillStyle = grad;
+
+        ctx.beginPath();
+        ctx.arc(0, 0, 80, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.shadowColor = 'transparent';
+
+        // 高光
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.beginPath();
+        ctx.ellipse(-25, -25, 20, 8, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Emoji
+        ctx.font = '60px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(toy.emoji, 0, 0);
+
+        ctx.restore();
+
+        // 名称
+        ctx.fillStyle = '#7a6758';
+        ctx.font = '20px ZCOOL KuaiLe';
+        ctx.textAlign = 'center';
+        ctx.fillText(toy.name, x, y + 120);
+    }
+
+    // ==================== 粒子系统 ====================
+    function spawnExplosion() {
+        STATE.isExploded = true;
+        STATE.particles = [];
+        STATE.crawlers = [];
+
+        const cx = window.innerWidth / 2;
+        const cy = window.innerHeight / 2;
+        const toy = TOYS[STATE.currentCategory][STATE.currentToy];
+
+        // 生成粒子
+        for (let i = 0; i < CONFIG.PARTICLE_COUNT; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 4 + Math.random() * 12;
+            STATE.particles.push({
+                x: cx,
+                y: cy,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 3,
+                life: 1,
+                size: 5 + Math.random() * 10,
+                color: Math.random() > 0.5 ? toy.c1 : toy.c2,
+                rotation: Math.random() * Math.PI * 2
+            });
+        }
+
+        // 爬虫类别：生成爬虫动画
+        if (STATE.currentCategory === 'crawler') {
+            for (let i = 0; i < 25; i++) {
+                STATE.crawlers.push({
+                    emoji: toy.emoji,
+                    x: cx + (Math.random() - 0.5) * 100,
+                    y: cy + (Math.random() - 0.5) * 100,
+                    angle: Math.random() * Math.PI * 2,
+                    speed: 1 + Math.random() * 2,
+                    phase: Math.random() * Math.PI * 2,
+                    size: 16 + Math.random() * 12
+                });
+            }
+        }
+
+        audio.playPop(STATE.currentCategory);
+        instructionText.textContent = STATE.currentCategory === 'crawler' ? '🐛 爬虫们正在四处乱爬～' : '✨ 砰！压力释放啦～';
+
+        setTimeout(() => {
+            STATE.isExploded = false;
+            STATE.particles = [];
+            STATE.crawlers = [];
+            instructionText.textContent = '✋ 将手放在镜头前，握紧拳头';
+        }, 4000);
+    }
+
+    function updateParticles() {
+        STATE.particles.forEach(p => {
+            p.vy += 0.5;
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life -= 0.015;
+            p.rotation += 0.1;
+
+            if (p.y > window.innerHeight - 30) {
+                p.y = window.innerHeight - 30;
+                p.vy *= -0.5;
+                p.vx *= 0.8;
+            }
+        });
+
+        STATE.particles = STATE.particles.filter(p => p.life > 0);
     }
 
     function drawParticles() {
-      ctx.save();
-      for (const p of state.particles) {
-        p.x += p.vx; 
-        p.y += p.vy; 
-        p.vy += 0.18;
-        p.life -= 0.02;
-        if (p.life <= 0) continue;
-        ctx.globalAlpha = p.life;
-        ctx.fillStyle = CATEGORIES[state.category].popWave;
-        ctx.beginPath();
-        ctx.ellipse(p.x, p.y, p.size, p.size*0.7, p.hue, 0, Math.PI*2);
-        ctx.fill();
-      }
-      ctx.restore();
-      state.particles = state.particles.filter(p => p.life > 0);
-    }
+        STATE.particles.forEach(p => {
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rotation);
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(0, 0, p.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        });
 
-    function drawCrawlers() {
-      for (const c of state.crawlers) {
-        c.phase += 0.15;
-        c.a += (Math.random() - 0.5) * 0.25;
-        c.x += Math.cos(c.a) * c.speed;
-        c.y += Math.sin(c.a) * c.speed + Math.sin(c.phase) * 0.45;
-        if (c.x < 15 || c.x > window.innerWidth - 15) c.a = Math.PI - c.a;
-        if (c.y < 40 || c.y > window.innerHeight - 15) c.a = -c.a;
-        ctx.save();
-        ctx.translate(c.x, c.y);
-        ctx.rotate(c.a);
-        ctx.font = `${c.size}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
-        ctx.fillText(c.emoji, 0, 0);
-        ctx.restore();
-      }
-    }
+        // 绘制爬虫
+        const time = Date.now() / 1000;
+        STATE.crawlers.forEach(c => {
+            c.x += Math.cos(c.angle) * c.speed;
+            c.y += Math.sin(c.angle) * c.speed * 0.5;
+            c.angle += Math.sin(time * 2 + c.phase) * 0.05;
 
-    function getDist(p1, p2) { 
-      return Math.hypot(p1.x - p2.x, p1.y - p2.y); 
+            // 边界反弹
+            if (c.x < 50 || c.x > window.innerWidth - 50) c.angle = Math.PI - c.angle;
+            if (c.y < 50 || c.y > window.innerHeight - 50) c.angle = -c.angle;
+
+            ctx.save();
+            ctx.translate(c.x, c.y);
+            ctx.scale(c.size / 24, c.size / 24);
+            ctx.font = '24px "Apple Color Emoji"';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(c.emoji, 0, 0);
+            ctx.restore();
+        });
     }
 
     // ==================== 手部识别 ====================
-    function onHandResults(results) {
-      if (!playUI.style.display || playUI.style.display === 'none') return;
-      
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        const lm = results.multiHandLandmarks[0];
-        let distTips = 0;
-        distTips += getDist(lm[8], lm[0]);
-        distTips += getDist(lm[12], lm[0]);
-        distTips += getDist(lm[16], lm[0]);
-        distTips += getDist(lm[20], lm[0]);
-        const palmSize = getDist(lm[9], lm[0]) * 4;
-        let ratio = distTips / Math.max(0.0001, palmSize);
-        let rawFist = 1 - ((ratio - 0.7) / 1.3);
-        rawFist = Math.max(0, Math.min(1, rawFist));
-
-        state.smoothedFistFactor = state.smoothedFistFactor * (1 - CONFIG.EMA_ALPHA) + rawFist * CONFIG.EMA_ALPHA;
-        state.fistFactor = state.smoothedFistFactor;
-        state.squeeze = state.fistFactor;
-
-        if (state.fistFactor > CONFIG.FIST_THRESHOLD && !state.exploded) {
-          if (!state.isSqueezing) {
-            state.isSqueezing = true;
-            state.squeezeStartTime = Date.now();
-          }
-          state.lastSqueezeTime = Date.now();
-          audio.sponge();
-          
-          const elapsed = Date.now() - state.squeezeStartTime;
-          const remain = Math.max(0, CONFIG.HOLD_TIME_MS - elapsed);
-          const seconds = Math.ceil(remain / 1000);
-          
-          // 更新进度环
-          progressContainer.classList.add('visible');
-          progressText.textContent = seconds;
-          const circumference = 80 * 2 * Math.PI;
-          const offset = circumference - (elapsed / CONFIG.HOLD_TIME_MS) * circumference;
-          progressRing.style.strokeDashoffset = Math.max(0, offset);
-          
-          if (remain > 0) {
-            statusText.textContent = `用力捏紧！${seconds}秒`;
-          } else {
-            statusText.textContent = '要爆啦！';
-          }
-          
-          if (elapsed >= CONFIG.HOLD_TIME_MS) {
-            progressContainer.classList.remove('visible');
-            spawnExplosion();
-          }
-        } else if (state.isSqueezing && (Date.now() - state.lastSqueezeTime > CONFIG.GRACE_PERIOD_MS)) {
-          state.isSqueezing = false;
-          progressContainer.classList.remove('visible');
-          if (!state.exploded) statusText.textContent = '请继续握拳 3 秒';
-        }
-      } else {
-        state.smoothedFistFactor *= 0.86;
-        state.squeeze = state.smoothedFistFactor;
-        progressContainer.classList.remove('visible');
-        
-        if (state.isSqueezing && (Date.now() - state.lastSqueezeTime > CONFIG.GRACE_PERIOD_MS)) {
-          state.isSqueezing = false;
-          if (!state.exploded) statusText.textContent = '未检测到手，请对准镜头';
-        }
-      }
+    function getDist(p1, p2) {
+        return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
     }
 
-    async function setupCameraHands() {
-      if (state.cameraStarted) return;
-      
-      try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error('浏览器不支持摄像头访问');
-        }
-        
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            facingMode: 'user'
-          }, 
-          audio: false 
-        });
-        
-        videoElement.srcObject = stream;
-        
-        await new Promise((resolve, reject) => {
-          videoElement.onloadedmetadata = () => {
-            videoElement.play().then(resolve).catch(reject);
-          };
-          videoElement.onerror = reject;
-          setTimeout(() => reject(new Error('视频加载超时')), 10000);
-        });
-        
-        const hands = new Hands({ 
-          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` 
-        });
-        
-        // 移动端优化配置
-        const isMobile = window.innerWidth < 768;
-        hands.setOptions({ 
-          maxNumHands: 1, 
-          modelComplexity: isMobile ? 0 : 1, // 移动端使用轻量模型
-          minDetectionConfidence: 0.5, // 降低检测阈值提高灵敏度
-          minTrackingConfidence: 0.5 
-        });
-        
-        hands.onResults(onHandResults);
-        
-        const processVideo = async () => {
-          if (!state.cameraStarted) return;
-          
-          try {
-            if (videoElement.readyState >= 2) {
-              await hands.send({ image: videoElement });
+    function onHandResults(results) {
+        if (!gameUI.classList.contains('hidden') && results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const lm = results.multiHandLandmarks[0];
+
+            let distTips = 0;
+            distTips += getDist(lm[8], lm[0]);
+            distTips += getDist(lm[12], lm[0]);
+            distTips += getDist(lm[16], lm[0]);
+            distTips += getDist(lm[20], lm[0]);
+
+            const palmSize = getDist(lm[9], lm[0]) * 4;
+            const ratio = distTips / Math.max(0.0001, palmSize);
+            let rawFist = 1 - ((ratio - 0.7) / 1.3);
+            rawFist = Math.max(0, Math.min(1, rawFist));
+
+            STATE.smoothedFistFactor = STATE.smoothedFistFactor * (1 - CONFIG.EMA_ALPHA) + rawFist * CONFIG.EMA_ALPHA;
+            STATE.fistFactor = STATE.smoothedFistFactor;
+
+            if (STATE.fistFactor > CONFIG.FIST_THRESHOLD && !STATE.isExploded) {
+                if (!STATE.isSqueezing) {
+                    STATE.isSqueezing = true;
+                    STATE.squeezeStartTime = Date.now();
+                }
+                STATE.lastSqueezeTime = Date.now();
+                audio.playSquish();
+
+                const elapsed = Date.now() - STATE.squeezeStartTime;
+                const remain = Math.max(0, CONFIG.HOLD_TIME_MS - elapsed);
+                const seconds = Math.ceil(remain / 1000);
+
+                progressContainer.classList.add('visible');
+                progressText.textContent = seconds;
+
+                const circumference = 80 * 2 * Math.PI;
+                const offset = circumference - (elapsed / CONFIG.HOLD_TIME_MS) * circumference;
+                progressRing.style.strokeDashoffset = Math.max(0, offset);
+
+                if (elapsed > 1500) {
+                    instructionText.textContent = `🔥 保持住！${seconds}秒！`;
+                } else {
+                    instructionText.textContent = `用力捏紧！${seconds}秒`;
+                }
+
+                if (elapsed >= CONFIG.HOLD_TIME_MS) {
+                    progressContainer.classList.remove('visible');
+                    spawnExplosion();
+                }
+            } else if (STATE.isSqueezing && (Date.now() - STATE.lastSqueezeTime > CONFIG.GRACE_PERIOD_MS)) {
+                STATE.isSqueezing = false;
+                progressContainer.classList.remove('visible');
+                if (!STATE.isExploded) instructionText.textContent = '✋ 继续握紧 3 秒';
             }
-          } catch (err) {
-            console.error('手部识别处理错误:', err);
-          }
-          
-          requestAnimationFrame(processVideo);
-        };
-        
-        state.cameraStarted = true;
-        processVideo();
-        
-        cameraPreview.srcObject = stream;
-        cameraPreview.style.display = 'block';
-        
-      } catch (err) {
-        console.error('摄像头启动失败:', err);
-        statusText.textContent = '摄像头启动失败';
-        alert('无法访问摄像头，请确保已授予权限');
-      }
+        } else if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+            STATE.smoothedFistFactor *= 0.85;
+            progressContainer.classList.remove('visible');
+            if (STATE.isSqueezing && (Date.now() - STATE.lastSqueezeTime > CONFIG.GRACE_PERIOD_MS)) {
+                STATE.isSqueezing = false;
+                if (!STATE.isExploded) instructionText.textContent = '✋ 未检测到手，请对准镜头';
+            }
+        }
+    }
+
+    async function setupCamera() {
+        if (STATE.cameraActive) return;
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+                audio: false
+            });
+
+            videoElement.srcObject = stream;
+            await videoElement.play();
+
+            const hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: window.innerWidth < 768 ? 0 : 1,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            hands.onResults(onHandResults);
+
+            const processVideo = async () => {
+                if (!STATE.cameraActive) return;
+                if (videoElement.readyState >= 2) {
+                    await hands.send({ image: videoElement });
+                }
+                requestAnimationFrame(processVideo);
+            };
+
+            STATE.cameraActive = true;
+            processVideo();
+
+            cameraPreview.srcObject = stream;
+            cameraPreview.style.display = 'block';
+
+        } catch (err) {
+            console.error('摄像头启动失败:', err);
+            instructionText.textContent = '❌ 摄像头启动失败';
+        }
     }
 
     // ==================== 游戏循环 ====================
-    function loop() {
-      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      ctx.fillStyle = '#f8f1e7';
-      ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-      
-      // 只在第一页显示浮动图像
-      if (pages.landing.classList.contains('active')) {
-        floatingLayer.style.display = 'block';
-        updateFloaters();
-      } else {
-        floatingLayer.style.display = 'none';
-      }
+    function gameLoop() {
+        ctx.fillStyle = '#FDF8F5';
+        ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
-      if (!pages.landing.classList.contains('active') && !pages.category.classList.contains('active')) {
-        // 第三页：捏捏定位到屏幕正中间
-        const cx = window.innerWidth / 2;
-        const cy = window.innerHeight / 2;
-        const scale = window.innerWidth / 375;
-        
-        if (!state.exploded) {
-          const toy = TOYS[state.category][state.toyIndex];
-          const baseScale = Math.min(1.2, scale * 1.2);
-          drawModel(toy, cx, cy, baseScale, scale);
+        // 第一页显示浮动图形
+        if (pages.start.classList.contains('active')) {
+            floatingLayer.style.display = 'block';
+            updateFloaters();
         } else {
-          drawParticles();
-          if (state.category === 'crawler') drawCrawlers();
+            floatingLayer.style.display = 'none';
         }
-      }
-      
-      requestAnimationFrame(loop);
+
+        // 游戏页绘制捏捏
+        if (!pages.start.classList.contains('active') && !pages.category.classList.contains('active')) {
+            const cx = window.innerWidth / 2;
+            const cy = window.innerHeight / 2;
+            const scale = window.innerWidth < 768 ? 1.0 : 1.4;
+
+            if (!STATE.isExploded) {
+                const toy = TOYS[STATE.currentCategory][STATE.currentToy];
+                drawToy(toy, cx, cy, scale, STATE.smoothedFistFactor);
+            } else {
+                updateParticles();
+                drawParticles();
+            }
+        }
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    // ==================== 页面切换 ====================
+    function showPage(name) {
+        Object.values(pages).forEach(p => p.classList.remove('active'));
+        if (pages[name]) pages[name].classList.add('active');
+        
+        if (name === 'start') {
+            spawnFloaters();
+            audio.stopBgMusic();
+        }
     }
 
     // ==================== 事件绑定 ====================
-    document.getElementById('go-category').onclick = () => setPage('category');
-    
-    document.getElementById('start-play').onclick = async () => {
-      state.toyIndex = 0;
-      await startPlay();
-    };
-    
-    document.getElementById('back-category').onclick = () => {
-      setPage('category');
-      playUI.style.display = 'none';
-      bottomNav.classList.remove('active');
-      state.cameraStarted = false;
-      if (videoElement.srcObject) {
-        videoElement.srcObject.getTracks().forEach(track => track.stop());
-      }
-    };
+    startBtn.addEventListener('click', async () => {
+        startBtn.classList.add('hidden');
+        loadingIndicator.classList.remove('hidden');
+        loadingIndicator.classList.add('flex');
 
-    // 触摸反馈
-    document.querySelectorAll('.touch-feedback').forEach(el => {
-      el.addEventListener('touchstart', () => {
-        el.style.transform = 'scale(0.96)';
-      }, { passive: true });
-      
-      el.addEventListener('touchend', () => {
-        setTimeout(() => {
-          el.style.transform = '';
-        }, CONFIG.TOUCH_FEEDBACK_DURATION);
-      }, { passive: true });
+        try {
+            if (audio.audioCtx.state === 'suspended') {
+                await audio.audioCtx.resume();
+            }
+            audio.playBgMusic();
+            
+            setTimeout(() => {
+                loadingIndicator.classList.add('hidden');
+                showPage('category');
+            }, 800);
+        } catch (err) {
+            loadingIndicator.innerHTML = '<p class="text-red-500">加载失败，请刷新重试</p>';
+        }
     });
 
-    // 窗口调整
-    window.addEventListener('resize', () => { 
-      resize(); 
-      spawnFloaters(); 
+    categoryCards.forEach(card => {
+        card.addEventListener('click', () => {
+            categoryCards.forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            
+            const category = card.dataset.category;
+            STATE.currentCategory = category;
+            STATE.currentToy = 0;
+
+            // 显示捏捏选择
+            toySelector.classList.remove('hidden');
+            toyCategoryLabel.textContent = `选择${card.querySelector('.font-bold').textContent}`;
+            
+            toyGrid.innerHTML = '';
+            TOYS[category].forEach((toy, index) => {
+                const item = document.createElement('div');
+                item.className = `toy-item ${index === 0 ? 'selected' : ''}`;
+                item.innerHTML = `<span style="font-size: 28px;">${toy.emoji}</span><span style="font-size: 10px;">${toy.name}</span>`;
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.querySelectorAll('.toy-item').forEach(t => t.classList.remove('selected'));
+                    item.classList.add('selected');
+                    STATE.currentToy = index;
+                });
+                toyGrid.appendChild(item);
+            });
+
+            playBtn.classList.remove('hidden');
+        });
     });
 
-    // 防止双击缩放
-    let lastTouchEnd = 0;
-    document.addEventListener('touchend', (e) => {
-      const now = Date.now();
-      if (now - lastTouchEnd <= 300) {
-        e.preventDefault();
-      }
-      lastTouchEnd = now;
-    }, { passive: false });
+    playBtn.addEventListener('click', async () => {
+        showPage('game');
+        gameUI.classList.remove('hidden');
+        await setupCamera();
+    });
 
-    // 初始化
-    resize();
+    backBtn.addEventListener('click', () => {
+        showPage('start');
+        toySelector.classList.add('hidden');
+        playBtn.classList.add('hidden');
+        categoryCards.forEach(c => c.classList.remove('selected'));
+    });
+
+    exitBtn.addEventListener('click', () => {
+        showPage('category');
+        gameUI.classList.add('hidden');
+        STATE.cameraActive = false;
+        if (videoElement.srcObject) {
+            videoElement.srcObject.getTracks().forEach(track => track.stop());
+        }
+        cameraPreview.style.display = 'none';
+    });
+
+    // ==================== 初始化 ====================
     spawnFloaters();
-    initCategories();
-    requestAnimationFrame(loop);
-  </script>
+    gameLoop();
+    </script>
 </body>
 </html>
