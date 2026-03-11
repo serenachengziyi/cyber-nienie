@@ -20,6 +20,15 @@
             color: #5A4C40;
         }
 
+        #main-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            z-index: 0;
+        }
+
         .q-shadow {
             box-shadow: 0 10px 25px rgba(200, 180, 160, 0.3), inset 0 2px 5px rgba(255, 255, 255, 0.8);
         }
@@ -259,6 +268,7 @@
 
     <script>
     // ==================== 配置 ====================
+    // Config
     const CONFIG = {
         HOLD_TIME_MS: 3000,
         GRACE_PERIOD_MS: 600,
@@ -268,6 +278,7 @@
     };
 
     // ==================== 状态 ====================
+    // State
     const STATE = {
         currentCategory: 'fruit',
         currentToy: 0,
@@ -284,6 +295,7 @@
     };
 
     // ==================== 捏捏数据 ====================
+    // Toy data
     const TOYS = {
         fruit: [
             { name: '蜜桃', emoji: '🍑', c1: '#FFB4A2', c2: '#FFCDB2', juice: 'rgba(255,180,162,0.8)' },
@@ -328,6 +340,7 @@
     };
 
     // ==================== DOM元素 ====================
+    // DOM references
     const canvas = document.getElementById('main-canvas');
     const ctx = canvas.getContext('2d');
     const floatingLayer = document.getElementById('floating-layer');
@@ -354,6 +367,7 @@
     const progressText = document.getElementById('progress-text');
 
     // ==================== 音频系统 ====================
+    // Audio
     class AudioManager {
         constructor() {
             this.bgMusic = null;
@@ -445,15 +459,21 @@
     const audio = new AudioManager();
 
     // ==================== Canvas初始化 ====================
+    // Canvas setup
     function resizeCanvas() {
-        canvas.width = window.innerWidth * window.devicePixelRatio;
-        canvas.height = window.innerHeight * window.devicePixelRatio;
-        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        const dpr = window.devicePixelRatio || 1;
+        canvas.style.width = `${window.innerWidth}px`;
+        canvas.style.height = `${window.innerHeight}px`;
+        canvas.width = Math.floor(window.innerWidth * dpr);
+        canvas.height = Math.floor(window.innerHeight * dpr);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
     }
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
     // ==================== 浮动图形系统 ====================
+    // Floating background toys
     function spawnFloaters() {
         floatingLayer.innerHTML = '';
         STATE.floaters = [];
@@ -514,6 +534,7 @@
     }
 
     // ==================== 绘制捏捏 ====================
+    // Draw the selected toy at a screen position.
     function drawToy(toy, x, y, scale, squeeze) {
         ctx.save();
         ctx.translate(x, y);
@@ -564,6 +585,7 @@
     }
 
     // ==================== 粒子系统 ====================
+    // Spawn explosion particles from the toy center.
     function spawnExplosion() {
         STATE.isExploded = true;
         STATE.particles = [];
@@ -669,6 +691,7 @@
     }
 
     // ==================== 手部识别 ====================
+    // Hand tracking helpers
     function getDist(p1, p2) {
         return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
     }
@@ -781,6 +804,7 @@
     }
 
     // ==================== 游戏循环 ====================
+    // Main render loop
     function gameLoop() {
         ctx.fillStyle = '#FDF8F5';
         ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
@@ -812,6 +836,7 @@
     }
 
     // ==================== 页面切换 ====================
+    // Screen switching
     function showPage(name) {
         Object.values(pages).forEach(p => p.classList.remove('active'));
         if (pages[name]) pages[name].classList.add('active');
@@ -823,6 +848,7 @@
     }
 
     // ==================== 事件绑定 ====================
+    // Event binding
     startBtn.addEventListener('click', async () => {
         startBtn.classList.add('hidden');
         loadingIndicator.classList.remove('hidden');
@@ -898,6 +924,7 @@
     });
 
     // ==================== 初始化 ====================
+    // Boot
     spawnFloaters();
     gameLoop();
     </script>
